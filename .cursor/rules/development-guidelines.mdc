@@ -1,0 +1,163 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# Cursor Active Users Bot - Development Rules
+
+## 🚨 CRITICAL LINTING WORKFLOW
+
+### ALWAYS run `npm run lint:fix` after making code changes
+
+- **NEVER** attempt to manually fix linting errors without running this command first
+- `npm run lint:fix` is the **ONLY** command you are allowed to use for fixing linting issues
+- **DO NOT** run any other linting commands like `biome check --fix --unsafe` or manual fixes
+- If there are still errors after `npm run lint:fix`, **STOP** and leave it to the user
+- **DO NOT** attempt any additional fixes - the user will handle remaining issues
+
+### Post-change workflow
+
+1. Make your code changes
+2. **IMMEDIATELY** run `npm run lint:fix` (the ONLY allowed linting command)
+3. If there are still linting errors, **STOP** - leave them for the user to handle
+4. If no errors remain, run `npm test` to ensure tests still pass
+5. Commit your changes
+
+## 🧪 Testing Requirements
+
+### Always maintain test coverage
+
+- Run `npm test` before committing any changes
+- When modifying services, update corresponding test mocks
+- When adding new API calls, mock them in tests
+- Ensure all async operations are properly tested
+
+### Test file patterns
+
+- Service tests: `tests/services/*.test.ts`
+- Infrastructure tests: `tests/infrastructure/*.test.ts`
+- Mock all external API calls (Slack, Cursor, AWS)
+
+## 🏗️ Architecture Guidelines
+
+### Service Layer Pattern
+
+- Keep business logic in `src/services/`
+- Lambda handler in `src/lambda/` should only orchestrate services
+- Each service should have a single responsibility
+- Use dependency injection for better testability
+
+### Slack API Development
+
+- Always mock `users.lookupByEmail` when testing
+- Include both successful and failed user lookup scenarios
+- Test message formatting with and without found users
+- Verify proper error handling and logging
+
+### Cursor Admin API Development
+
+- Mock API responses with correct nested structure
+- Test filtering logic (e.g., only "member" role users)
+- Handle API errors gracefully with proper logging
+
+## 📝 Code Style
+
+### Use TypeScript strictly
+
+- Always define proper interfaces for API responses
+- Use type-safe error handling
+- Prefer `const` assertions where appropriate
+- Document public methods with JSDoc comments
+
+### Error Handling
+
+- Use structured logging with JSON.stringify for objects
+- Always handle both success and error scenarios
+- Provide meaningful error messages
+- Use console.warn for recoverable issues, console.error for failures
+
+## 🔧 Development Workflow
+
+### Local Development
+
+- Use `npm run dev` for local development with auto-restart
+- Test changes locally before deploying
+- Use environment variables instead of AWS Secrets Manager locally
+- Verify both successful and error scenarios
+
+### CDK Development
+
+- Run `npm run build` before CDK operations
+- Use `npx cdk diff` to review changes before deployment
+- Test infrastructure changes in multiple environments
+- Keep CDK code in `lib/` directory
+
+## 🚀 Deployment Guidelines
+
+### Pre-deployment checklist
+
+1. All tests passing (`npm test`)
+2. No linting errors (`npm run check`)
+3. Code formatted (`npm run format`)
+4. CDK synthesizes successfully (`npx cdk synth`)
+5. Review changes (`npx cdk diff`)
+
+### Secret Management
+
+- Never commit actual secrets to git
+- Use placeholder values in code
+- Update AWS Secrets Manager after deployment
+- Document required secret structure in README
+
+## 📋 Code Review Standards
+
+### Before submitting changes
+
+- Run full linting workflow (`npm run lint:fix`)
+- Ensure all tests pass with good coverage
+- Update documentation if APIs changed
+- Verify example configurations are current
+- Test both success and failure scenarios
+
+### When reviewing code
+
+- Check that linting has been run (no style inconsistencies)
+- Verify test coverage for new functionality
+- Ensure error handling is comprehensive
+- Validate that secrets are properly managed
+
+## 🔍 Debugging Guidelines
+
+### Use structured logging
+
+```typescript
+console.log("Operation completed", { count: users.length, timestamp: Date.now() });
+console.error("API Error:", JSON.stringify(error, null, 2));
+```
+
+### Test different scenarios
+
+- Empty responses from APIs
+- Network timeouts and errors
+- Invalid configurations
+- Missing environment variables
+
+## 📚 Documentation Updates
+
+### Keep documentation current
+
+- Update README.md when adding features
+- Update LOCAL_DEVELOPMENT.md for dev workflow changes
+- Update env.example for new environment variables
+- Document new Slack permissions or API requirements
+
+### Example updates required when
+
+- Adding new environment variables
+- Changing Slack app permissions
+- Modifying API response handling
+- Adding new secret requirements
+
+---
+
+**🚨 CRITICAL REMINDER: Use ONLY `npm run lint:fix` for linting. If errors remain after this command, DO NOT attempt any additional fixes. Leave remaining issues to the user! 🚨**

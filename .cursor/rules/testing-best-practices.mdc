@@ -1,0 +1,75 @@
+---
+description: 
+globs: **/*.test.ts
+alwaysApply: false
+---
+# Testing Best Practices
+
+## General Testing Guidelines
+
+### Test Isolation
+
+- Each test should be completely independent
+- No test should depend on another test's outcome
+- Use `beforeEach`/`afterEach` for setup and cleanup
+
+### Environment Variables in Tests
+
+- **NEVER** mutate `process.env` directly in tests
+- Use mocking or pass values directly to constructors
+- Always restore original environment if temporarily modified
+
+### CDK Infrastructure Testing
+
+```typescript
+// ✅ GOOD: Pass environment directly
+const mockEnv = { AWS_ACCOUNT: '123456789012', AWS_REGION: 'us-east-1' };
+const stack = new MyStack(app, 'TestStack', {
+  env: { account: mockEnv.AWS_ACCOUNT, region: mockEnv.AWS_REGION }
+});
+```
+
+### Mock Data Structure
+
+- Create comprehensive mock data that reflects real API responses
+- Include all required fields with realistic values
+- Use factories for generating test data consistently
+
+### Snapshot Testing
+
+- Use snapshots for infrastructure tests to catch unexpected changes
+- Update snapshots deliberately, not automatically
+- Review snapshot changes carefully during code review
+
+### Test Naming
+
+- Use descriptive test names that explain the scenario
+- Format: `should {expected behavior} when {condition}`
+- Example: `should identify inactive users correctly when usage data is filtered`
+
+### Async Testing
+
+```typescript
+// ✅ GOOD: Proper async/await usage
+it('should handle async operations', async () => {
+  const result = await myAsyncFunction();
+  expect(result).toBeDefined();
+});
+```
+
+### Error Testing
+
+```typescript
+// ✅ GOOD: Test error conditions
+it('should throw error when required parameter is missing', () => {
+  expect(() => {
+    new MyClass();
+  }).toThrow('Missing required parameter');
+});
+```
+
+### Test Organization
+
+- Group related tests using `describe` blocks
+- One test file per source file or logical unit
+- Keep test files in `tests/` directory mirroring `src/` structure

@@ -1,0 +1,368 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`CursorActiveUsersBotStack Infrastructure Tests CloudFormation Outputs should match outputs snapshot: cloudformation-outputs 1`] = `
+{
+  "LambdaFunctionName": {
+    "Description": "Name of the Inactive User Checker Lambda function",
+    "Value": {
+      "Ref": "InactiveUserCheckerFunctionD51D6C82",
+    },
+  },
+}
+`;
+
+exports[`CursorActiveUsersBotStack Infrastructure Tests Complete Stack Snapshot should match the complete CloudFormation template snapshot 1`] = `
+{
+  "Outputs": {
+    "LambdaFunctionName": {
+      "Description": "Name of the Inactive User Checker Lambda function",
+      "Value": {
+        "Ref": "InactiveUserCheckerFunctionD51D6C82",
+      },
+    },
+  },
+  "Parameters": {
+    "BootstrapVersion": {
+      "Default": "/cdk-bootstrap/hnb659fds/version",
+      "Description": "Version of the CDK Bootstrap resources in this environment, automatically retrieved from SSM Parameter Store. [cdk:skip]",
+      "Type": "AWS::SSM::Parameter::Value<String>",
+    },
+  },
+  "Resources": {
+    "ApiSecretsED109BDA": {
+      "DeletionPolicy": "Delete",
+      "Properties": {
+        "Description": "API keys for Cursor and Slack bots",
+        "Name": "CursorActiveUserBotSecrets",
+        "SecretString": "{"CURSOR_API_KEY":"YOUR_CURSOR_API_KEY_PLACEHOLDER","SLACK_BOT_TOKEN":"YOUR_SLACK_BOT_TOKEN_PLACEHOLDER","SLACK_USER_ID":"YOUR_SLACK_USER_ID_PLACEHOLDER","SLACK_SIGNING_SECRET":"YOUR_SLACK_SIGNING_SECRET_PLACEHOLDER"}",
+      },
+      "Type": "AWS::SecretsManager::Secret",
+      "UpdateReplacePolicy": "Delete",
+    },
+    "InactiveUserCheckerFunctionD51D6C82": {
+      "DependsOn": [
+        "InactiveUserCheckerFunctionServiceRoleDefaultPolicy3B2516D9",
+        "InactiveUserCheckerFunctionServiceRoleF228211B",
+      ],
+      "Properties": {
+        "Code": {
+          "S3Bucket": "cdk-hnb659fds-assets-123456789012-us-east-1",
+          "S3Key": "eb557a64db962df4939179b4dca895e9849d25faefefd7eb4ffb965cbf4a818d.zip",
+        },
+        "Environment": {
+          "Variables": {
+            "SECRETS_ARN": {
+              "Ref": "ApiSecretsED109BDA",
+            },
+          },
+        },
+        "Handler": "index.handler",
+        "MemorySize": 256,
+        "Role": {
+          "Fn::GetAtt": [
+            "InactiveUserCheckerFunctionServiceRoleF228211B",
+            "Arn",
+          ],
+        },
+        "Runtime": "nodejs22.x",
+        "Timeout": 60,
+      },
+      "Type": "AWS::Lambda::Function",
+    },
+    "InactiveUserCheckerFunctionServiceRoleDefaultPolicy3B2516D9": {
+      "Properties": {
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Action": [
+                "secretsmanager:GetSecretValue",
+                "secretsmanager:DescribeSecret",
+              ],
+              "Effect": "Allow",
+              "Resource": {
+                "Ref": "ApiSecretsED109BDA",
+              },
+            },
+          ],
+          "Version": "2012-10-17",
+        },
+        "PolicyName": "InactiveUserCheckerFunctionServiceRoleDefaultPolicy3B2516D9",
+        "Roles": [
+          {
+            "Ref": "InactiveUserCheckerFunctionServiceRoleF228211B",
+          },
+        ],
+      },
+      "Type": "AWS::IAM::Policy",
+    },
+    "InactiveUserCheckerFunctionServiceRoleF228211B": {
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Statement": [
+            {
+              "Action": "sts:AssumeRole",
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "lambda.amazonaws.com",
+              },
+            },
+          ],
+          "Version": "2012-10-17",
+        },
+        "ManagedPolicyArns": [
+          {
+            "Fn::Join": [
+              "",
+              [
+                "arn:",
+                {
+                  "Ref": "AWS::Partition",
+                },
+                ":iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+              ],
+            ],
+          },
+        ],
+      },
+      "Type": "AWS::IAM::Role",
+    },
+    "MonthlyInactiveUserCheckRule14CE3D08": {
+      "Properties": {
+        "Description": "Triggers the inactive user checker Lambda function monthly.",
+        "ScheduleExpression": "cron(0 0 1 * ? *)",
+        "State": "ENABLED",
+        "Targets": [
+          {
+            "Arn": {
+              "Fn::GetAtt": [
+                "InactiveUserCheckerFunctionD51D6C82",
+                "Arn",
+              ],
+            },
+            "Id": "Target0",
+          },
+        ],
+      },
+      "Type": "AWS::Events::Rule",
+    },
+    "MonthlyInactiveUserCheckRuleAllowEventRuleTestStackInactiveUserCheckerFunction4054795B368DC7E2": {
+      "Properties": {
+        "Action": "lambda:InvokeFunction",
+        "FunctionName": {
+          "Fn::GetAtt": [
+            "InactiveUserCheckerFunctionD51D6C82",
+            "Arn",
+          ],
+        },
+        "Principal": "events.amazonaws.com",
+        "SourceArn": {
+          "Fn::GetAtt": [
+            "MonthlyInactiveUserCheckRule14CE3D08",
+            "Arn",
+          ],
+        },
+      },
+      "Type": "AWS::Lambda::Permission",
+    },
+  },
+  "Rules": {
+    "CheckBootstrapVersion": {
+      "Assertions": [
+        {
+          "Assert": {
+            "Fn::Not": [
+              {
+                "Fn::Contains": [
+                  [
+                    "1",
+                    "2",
+                    "3",
+                    "4",
+                    "5",
+                  ],
+                  {
+                    "Ref": "BootstrapVersion",
+                  },
+                ],
+              },
+            ],
+          },
+          "AssertDescription": "CDK bootstrap stack version 6 required. Please run 'cdk bootstrap' with a recent version of the CDK CLI.",
+        },
+      ],
+    },
+  },
+}
+`;
+
+exports[`CursorActiveUsersBotStack Infrastructure Tests EventBridge Rule should match EventBridge rule snapshot: eventbridge-rules 1`] = `
+{
+  "MonthlyInactiveUserCheckRule14CE3D08": {
+    "Properties": {
+      "Description": "Triggers the inactive user checker Lambda function monthly.",
+      "ScheduleExpression": "cron(0 0 1 * ? *)",
+      "State": "ENABLED",
+      "Targets": [
+        {
+          "Arn": {
+            "Fn::GetAtt": [
+              "InactiveUserCheckerFunctionD51D6C82",
+              "Arn",
+            ],
+          },
+          "Id": "Target0",
+        },
+      ],
+    },
+    "Type": "AWS::Events::Rule",
+  },
+}
+`;
+
+exports[`CursorActiveUsersBotStack Infrastructure Tests IAM Permissions should match IAM resources snapshot: iam-resources 1`] = `
+{
+  "permissions": {
+    "MonthlyInactiveUserCheckRuleAllowEventRuleTestStackInactiveUserCheckerFunction4054795B368DC7E2": {
+      "Properties": {
+        "Action": "lambda:InvokeFunction",
+        "FunctionName": {
+          "Fn::GetAtt": [
+            "InactiveUserCheckerFunctionD51D6C82",
+            "Arn",
+          ],
+        },
+        "Principal": "events.amazonaws.com",
+        "SourceArn": {
+          "Fn::GetAtt": [
+            "MonthlyInactiveUserCheckRule14CE3D08",
+            "Arn",
+          ],
+        },
+      },
+      "Type": "AWS::Lambda::Permission",
+    },
+  },
+  "policies": {
+    "InactiveUserCheckerFunctionServiceRoleDefaultPolicy3B2516D9": {
+      "Properties": {
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Action": [
+                "secretsmanager:GetSecretValue",
+                "secretsmanager:DescribeSecret",
+              ],
+              "Effect": "Allow",
+              "Resource": {
+                "Ref": "ApiSecretsED109BDA",
+              },
+            },
+          ],
+          "Version": "2012-10-17",
+        },
+        "PolicyName": "InactiveUserCheckerFunctionServiceRoleDefaultPolicy3B2516D9",
+        "Roles": [
+          {
+            "Ref": "InactiveUserCheckerFunctionServiceRoleF228211B",
+          },
+        ],
+      },
+      "Type": "AWS::IAM::Policy",
+    },
+  },
+  "roles": {
+    "InactiveUserCheckerFunctionServiceRoleF228211B": {
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Statement": [
+            {
+              "Action": "sts:AssumeRole",
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "lambda.amazonaws.com",
+              },
+            },
+          ],
+          "Version": "2012-10-17",
+        },
+        "ManagedPolicyArns": [
+          {
+            "Fn::Join": [
+              "",
+              [
+                "arn:",
+                {
+                  "Ref": "AWS::Partition",
+                },
+                ":iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+              ],
+            ],
+          },
+        ],
+      },
+      "Type": "AWS::IAM::Role",
+    },
+  },
+}
+`;
+
+exports[`CursorActiveUsersBotStack Infrastructure Tests Lambda Function should match Lambda function snapshot: lambda-functions 1`] = `
+{
+  "InactiveUserCheckerFunctionD51D6C82": {
+    "DependsOn": [
+      "InactiveUserCheckerFunctionServiceRoleDefaultPolicy3B2516D9",
+      "InactiveUserCheckerFunctionServiceRoleF228211B",
+    ],
+    "Properties": {
+      "Code": {
+        "S3Bucket": "cdk-hnb659fds-assets-123456789012-us-east-1",
+        "S3Key": "eb557a64db962df4939179b4dca895e9849d25faefefd7eb4ffb965cbf4a818d.zip",
+      },
+      "Environment": {
+        "Variables": {
+          "SECRETS_ARN": {
+            "Ref": "ApiSecretsED109BDA",
+          },
+        },
+      },
+      "Handler": "index.handler",
+      "MemorySize": 256,
+      "Role": {
+        "Fn::GetAtt": [
+          "InactiveUserCheckerFunctionServiceRoleF228211B",
+          "Arn",
+        ],
+      },
+      "Runtime": "nodejs22.x",
+      "Timeout": 60,
+    },
+    "Type": "AWS::Lambda::Function",
+  },
+}
+`;
+
+exports[`CursorActiveUsersBotStack Infrastructure Tests Resource Counts should create the expected number of resources: resource-counts 1`] = `
+{
+  "AWS::Events::Rule": 1,
+  "AWS::IAM::Policy": 1,
+  "AWS::IAM::Role": 1,
+  "AWS::Lambda::Function": 1,
+  "AWS::Lambda::Permission": 1,
+  "AWS::SecretsManager::Secret": 1,
+}
+`;
+
+exports[`CursorActiveUsersBotStack Infrastructure Tests Secrets Manager should match Secrets Manager snapshot: secrets-manager 1`] = `
+{
+  "ApiSecretsED109BDA": {
+    "DeletionPolicy": "Delete",
+    "Properties": {
+      "Description": "API keys for Cursor and Slack bots",
+      "Name": "CursorActiveUserBotSecrets",
+      "SecretString": "{"CURSOR_API_KEY":"YOUR_CURSOR_API_KEY_PLACEHOLDER","SLACK_BOT_TOKEN":"YOUR_SLACK_BOT_TOKEN_PLACEHOLDER","SLACK_USER_ID":"YOUR_SLACK_USER_ID_PLACEHOLDER","SLACK_SIGNING_SECRET":"YOUR_SLACK_SIGNING_SECRET_PLACEHOLDER"}",
+    },
+    "Type": "AWS::SecretsManager::Secret",
+    "UpdateReplacePolicy": "Delete",
+  },
+}
+`;

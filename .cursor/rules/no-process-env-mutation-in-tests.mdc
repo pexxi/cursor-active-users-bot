@@ -1,0 +1,95 @@
+---
+description: 
+globs: **/*.test.ts
+alwaysApply: false
+---
+# No Process Environment Mutation in Tests
+
+## Rule: Never mutate `process.env` directly in test files
+
+### Context
+
+Test files should never directly mutate `process.env` properties as this can cause flaky tests, side effects between tests, and difficult debugging scenarios.
+
+### What NOT to do
+
+```typescript
+// ❌ BAD: Direct mutation of process.env
+describe('My Test', () => {
+  beforeEach(() => {
+    process.env.MY_VARIABLE = 'test-value';  // NEVER DO THIS
+    delete process.env.OTHER_VARIABLE;       // NEVER DO THIS
+    process.env.AWS_ACCOUNT = '123456789012'; // NEVER DO THIS
+  });
+});
+```
+
+### What TO do instead
+
+#### Option 1: Pass values directly to constructors
+
+```typescript
+// ✅ GOOD: Pass environment values directly
+const mockEnv = {
+  AWS_ACCOUNT: '123456789012',
+  AWS_REGION: 'us-east-1'
+};
+
+const stack = new CursorActiveUsersBotStack(app, 'TestStack', {
+  env: {
+    account: mockEnv.AWS_ACCOUNT,
+    region: mockEnv.AWS_REGION,
+  }
+});
+```
+
+#### Option 2: Temporary environment replacement
+
+```typescript
+// ✅ GOOD: Replace process.env temporarily and locally
+const originalProcessEnv = process.env;
+const { AWS_ACCOUNT, ...envWithoutAccount } = originalProcessEnv;
+const mockProcessEnv = { ...envWithoutAccount, AWS_REGION: 'us-east-1' };
+
+Object.defineProperty(process, 'env', {
+  value: mockProcessEnv,
+  configurable: true
+});
+
+// ... run test ...
+
+// Always restore
+Object.defineProperty(process, 'env', {
+  value: originalProcessEnv,
+  configurable: true
+});
+```
+
+#### Option 3: Mock the service/config module
+
+```typescript
+// ✅ GOOD: Mock the service that uses environment variables
+jest.mock('../src/config', () => ({
+  getConfig: jest.fn(() => ({
+    awsAccount: '123456789012',
+    awsRegion: 'us-east-1'
+  }))
+}));
+```
+
+### Why this matters
+
+- **Prevents flaky tests**: Tests won't affect each other
+- **Isolation**: Each test runs in a predictable environment  
+- **Debugging**: Easier to track down test failures
+- **CI/CD stability**: Consistent behavior across environments
+
+### Applies to
+
+- Files ending in `.test.ts`, `.test.js`, `.spec.ts`, `.spec.js`
+- Files in `/tests/` directories
+- Any file containing Jest `describe()` or `it()` blocks
+
+### ESLint enforcement
+
+This rule is automatically enforced by our custom ESLint rule `local-rules/no-process-env-mutation` which will flag violations during development.

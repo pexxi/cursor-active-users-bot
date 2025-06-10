@@ -1,8 +1,20 @@
-*.js
-!jest.config.js
-*.d.ts
-node_modules
+node_modules/
+.DS_Store
+cdk.out/
+.env
+*.swp
+*.swo
+*.swn
 
 # CDK asset staging directory
 .cdk.staging
-cdk.out
+cdk.context.json
+
+# IDE/Editor specific
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+coverage
+dist
