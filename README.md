@@ -280,7 +280,7 @@ The API uses basic authentication with your admin API key as the username and em
 ## 🔒 Security
 
 - API keys stored securely in AWS Secrets Manager
-- IAM roles with least privilege access
+- IAM roles with least privilege access (the CDK stack provisions necessary permissions for the Lambda, including Secrets Manager access and CloudWatch logging)
 - Slack app permissions scoped to minimum requirements
 - No sensitive data in logs or code
 
