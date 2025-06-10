@@ -177,7 +177,7 @@ npm test -- --watch
 
 1. **Fetch Secrets** - Retrieves API keys from AWS Secrets Manager
 2. **Get Team Members** - Calls Cursor Admin API to get all team members
-3. **Fetch Usage Data** - Retrieves daily usage data for the last 2 months
+3. **Fetch Usage Data** - Retrieves daily usage data for the Lambda (currently set for the last 2 months; local testing supports configurable periods)
 4. **Analyze Activity** - Identifies users without recent activity
 5. **Lookup Slack Users** - Finds Slack usernames by email addresses
 6. **Send Notifications** - Posts Slack message with inactive user list including @username mentions
