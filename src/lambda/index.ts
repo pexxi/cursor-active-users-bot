@@ -88,10 +88,32 @@ export const handler = async (
 			return;
 		}
 
-		// 4. Get date range for usage data (last 2 months)
-		const { startDateEpochMs, endDateEpochMs } = getUsageDataDateRange(2);
+		// 4. Get date range for usage data
+		const inactivityMonthsString = process.env.INACTIVITY_MONTHS;
+		let inactivityMonths = 2; // Default value
+
+		if (inactivityMonthsString) {
+			const parsedInactivityMonths = parseInt(inactivityMonthsString, 10);
+			if (
+				!isNaN(parsedInactivityMonths) &&
+				parsedInactivityMonths > 0
+			) {
+				inactivityMonths = parsedInactivityMonths;
+			} else {
+				console.warn(
+					`INACTIVITY_MONTHS environment variable ("${inactivityMonthsString}") is not a valid positive integer. Using default value: ${inactivityMonths} months.`,
+				);
+			}
+		} else {
+			console.log(
+				`INACTIVITY_MONTHS environment variable is not set. Using default value: ${inactivityMonths} months.`,
+			);
+		}
+
+		const { startDateEpochMs, endDateEpochMs } =
+			getUsageDataDateRange(inactivityMonths);
 		console.log(
-			`Fetching daily usage data from ${new Date(startDateEpochMs).toISOString()} to ${new Date(endDateEpochMs).toISOString()}`,
+			`Fetching daily usage data for the last ${inactivityMonths} months, from ${new Date(startDateEpochMs).toISOString()} to ${new Date(endDateEpochMs).toISOString()}`,
 		);
 
 		// 5. Fetch daily usage data

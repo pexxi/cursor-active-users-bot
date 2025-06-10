@@ -67,6 +67,7 @@ export class CursorActiveUsersBotStack extends cdk.Stack {
 				memorySize: 256, // Adjust memory as needed
 				environment: {
 					SECRETS_ARN: apiSecrets.secretArn,
+					INACTIVITY_MONTHS: process.env.INACTIVITY_MONTHS || "",
 					// AWS_ACCOUNT and AWS_REGION are typically implicitly handled by CDK based on context/profile
 					// but can be passed if the lambda needs them for other AWS SDK calls unrelated to its own execution region/account.
 				},

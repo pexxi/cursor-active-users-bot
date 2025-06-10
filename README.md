@@ -32,9 +32,10 @@ The application is now structured with clean separation of concerns:
 
 ### Environment Variables
 
-Set the following environment variable in your Lambda configuration:
+The following environment variables are used by the application:
 
-- `SECRETS_ARN` - The ARN of your AWS Secrets Manager secret
+- `SECRETS_ARN`: **(Required)** The ARN (Amazon Resource Name) of the AWS Secrets Manager secret that stores your API keys and Slack tokens. This variable must be set in the Lambda function's environment.
+- `INACTIVITY_MONTHS`: **(Optional)** The number of months after which a user is considered inactive. If this variable is not set, is empty, or contains an invalid non-positive integer, the system defaults to `2` months. This can be set in the `.env` file for local CDK context or directly in the Lambda function's environment settings.
 
 ### Secrets Manager Setup
 
@@ -167,17 +168,19 @@ The Lambda function is designed to be triggered by EventBridge (CloudWatch Event
     ```
 
 3. **Create and Populate `.env` File**
-    In the root directory of the project, create a file named `.env`. This file will store your AWS configuration. Add the following content to it, replacing the placeholder values with your actual information:
+    In the root directory of the project, create a file named `.env`. This file will store your AWS configuration and optionally, the inactivity months setting. Add the following content to it, replacing the placeholder values with your actual information:
 
     ```env
     AWS_ACCOUNT=YOUR_AWS_ACCOUNT_ID_HERE
     AWS_REGION=YOUR_AWS_REGION_HERE
+    INACTIVITY_MONTHS=2 # Optional: Number of months after which a user is considered inactive. Defaults to 2.
     ```
 
     - `AWS_ACCOUNT`: Your AWS Account ID where the resources will be deployed.
     - `AWS_REGION`: The AWS Region where the resources will be deployed (e.g., `us-east-1`).
+    - `INACTIVITY_MONTHS`: (Optional) Controls how many months of inactivity are checked. The Lambda will use a default of 2 if this is not set or invalid. The CDK stack will pass this value to the Lambda if set here.
 
-    **Note on Secrets**: `CURSOR_API_KEY`, `SLACK_BOT_TOKEN`, and `SLACK_USER_ID` are no longer configured directly in this `.env` file. They will be stored in AWS Secrets Manager, and the Lambda function will fetch them from there. The CDK stack will create a secret with placeholder values during deployment.
+    **Note on Secrets**: `CURSOR_API_KEY`, `SLACK_BOT_TOKEN`, `SLACK_USER_ID`, and `SLACK_SIGNING_SECRET` are no longer configured directly in this `.env` file. They will be stored in AWS Secrets Manager. The CDK stack creates a secret with placeholder values, which you must update post-deployment.
 
 4. **Configure Slack App**
     - Ensure you have a Slack App created in your workspace.
@@ -226,7 +229,7 @@ This command uses the TypeScript compiler (`tsc`) as defined in your `package.js
 ## Post-Deployment
 
 - **Update Secrets in AWS Secrets Manager**:
-    After the initial deployment, the `CursorActiveUserBotSecrets` secret in AWS Secrets Manager will contain placeholder values. You **must** update this secret with your actual `CURSOR_API_KEY`, `SLACK_BOT_TOKEN`, and `SLACK_USER_ID`.
+    After the initial deployment, the `CursorActiveUserBotSecrets` secret in AWS Secrets Manager will contain placeholder values. You **must** update this secret with your actual `CURSOR_API_KEY`, `SLACK_BOT_TOKEN`, `SLACK_SIGNING_SECRET`, and `SLACK_USER_ID`.
     1. Go to the AWS Secrets Manager console.
     2. Find the secret named `CursorActiveUserBotSecrets` (the exact name might have a suffix depending on your CDK deployment).
     3. Click on the secret and choose "Retrieve secret value".
@@ -263,7 +266,7 @@ This command uses the TypeScript compiler (`tsc`) as defined in your `package.js
 
 ## Troubleshooting
 
-- **Missing Environment Variables in `.env`**: Ensure `AWS_ACCOUNT` and `AWS_REGION` in `.env` are correctly set.
+- **Missing Environment Variables in `.env`**: Ensure `AWS_ACCOUNT` and `AWS_REGION` in `.env` are correctly set. The `INACTIVITY_MONTHS` variable is optional in `.env` as the Lambda has a default.
 - **Secrets Not Updated**: If the Lambda function fails with authentication or API errors, ensure you have updated the placeholder values in the `CursorActiveUserBotSecrets` secret in AWS Secrets Manager with your actual keys and tokens.
 - **Permissions Issues**:
   - If the Lambda has trouble calling Cursor or Slack APIs (after updating secrets), double-check that the API keys and tokens are correct and have the necessary permissions on their respective platforms.
