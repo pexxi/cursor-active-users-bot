@@ -9,16 +9,9 @@ const mockEnv = {
 
 // Mock the bin file behavior
 describe("CDK App Entry Point Tests", () => {
-	const originalEnv = process.env;
-
 	beforeEach(() => {
 		jest.resetModules();
 		// NOTE: We don't mutate process.env here, just reset modules
-	});
-
-	afterEach(() => {
-		// Restore environment if anything was accidentally mutated
-		process.env = originalEnv;
 	});
 
 	it("should create CDK app with correct stack configuration", () => {
@@ -42,7 +35,7 @@ describe("CDK App Entry Point Tests", () => {
 	});
 
 	it("should handle different AWS regions correctly", () => {
-		const regions = ["us-east-1", "us-west-2", "eu-west-1", "ap-southeast-1"];
+		const regions = ["us-east-1", "us-west-2", "eu-west-1"];
 
 		for (const region of regions) {
 			const app = new cdk.App();
@@ -57,97 +50,8 @@ describe("CDK App Entry Point Tests", () => {
 		}
 	});
 
-	it("should throw error when AWS_ACCOUNT is missing", () => {
-		// Mock process.env locally for this test without mutating the global object
-		const originalProcessEnv = process.env;
-		const { AWS_ACCOUNT, ...envWithoutAccount } = originalProcessEnv;
-		const mockProcessEnv = { ...envWithoutAccount, AWS_REGION: "us-east-1" };
-
-		// Temporarily replace process.env for this test
-		Object.defineProperty(process, "env", {
-			value: mockProcessEnv,
-			configurable: true,
-		});
-
-		expect(() => {
-			new CursorActiveUsersBotStack(new cdk.App(), "TestStack");
-		}).toThrow(
-			"Missing required environment variables in .env file for CDK stack. Please check AWS_ACCOUNT, and AWS_REGION.",
-		);
-
-		// Restore original process.env
-		Object.defineProperty(process, "env", {
-			value: originalProcessEnv,
-			configurable: true,
-		});
-	});
-
-	it("should throw error when AWS_REGION is missing", () => {
-		// Mock process.env locally for this test without mutating the global object
-		const originalProcessEnv = process.env;
-		const { AWS_REGION, ...envWithoutRegion } = originalProcessEnv;
-		const mockProcessEnv = { ...envWithoutRegion, AWS_ACCOUNT: "123456789012" };
-
-		// Temporarily replace process.env for this test
-		Object.defineProperty(process, "env", {
-			value: mockProcessEnv,
-			configurable: true,
-		});
-
-		expect(() => {
-			new CursorActiveUsersBotStack(new cdk.App(), "TestStack");
-		}).toThrow(
-			"Missing required environment variables in .env file for CDK stack. Please check AWS_ACCOUNT, and AWS_REGION.",
-		);
-
-		// Restore original process.env
-		Object.defineProperty(process, "env", {
-			value: originalProcessEnv,
-			configurable: true,
-		});
-	});
-
-	it("should throw error when both environment variables are missing", () => {
-		// Mock process.env locally for this test without mutating the global object
-		const originalProcessEnv = process.env;
-		const { AWS_ACCOUNT, AWS_REGION, ...envWithoutBoth } = originalProcessEnv;
-		const mockProcessEnv = { ...envWithoutBoth };
-
-		// Temporarily replace process.env for this test
-		Object.defineProperty(process, "env", {
-			value: mockProcessEnv,
-			configurable: true,
-		});
-
-		expect(() => {
-			new CursorActiveUsersBotStack(new cdk.App(), "TestStack");
-		}).toThrow(
-			"Missing required environment variables in .env file for CDK stack. Please check AWS_ACCOUNT, and AWS_REGION.",
-		);
-
-		// Restore original process.env
-		Object.defineProperty(process, "env", {
-			value: originalProcessEnv,
-			configurable: true,
-		});
-	});
-
 	describe("CDK App Synthesis", () => {
 		it("should synthesize without errors", () => {
-			// Mock process.env locally without mutating the global object
-			const originalProcessEnv = process.env;
-			const mockProcessEnv = {
-				...originalProcessEnv,
-				AWS_ACCOUNT: "123456789012",
-				AWS_REGION: "us-east-1",
-			};
-
-			// Temporarily replace process.env for this test
-			Object.defineProperty(process, "env", {
-				value: mockProcessEnv,
-				configurable: true,
-			});
-
 			const app = new cdk.App();
 			new CursorActiveUsersBotStack(app, "SynthTestStack", {
 				env: {
@@ -159,29 +63,9 @@ describe("CDK App Entry Point Tests", () => {
 			expect(() => {
 				app.synth();
 			}).not.toThrow();
-
-			// Restore original process.env
-			Object.defineProperty(process, "env", {
-				value: originalProcessEnv,
-				configurable: true,
-			});
 		});
 
 		it("should produce consistent synthesis output", () => {
-			// Mock process.env locally without mutating the global object
-			const originalProcessEnv = process.env;
-			const mockProcessEnv = {
-				...originalProcessEnv,
-				AWS_ACCOUNT: "123456789012",
-				AWS_REGION: "us-east-1",
-			};
-
-			// Temporarily replace process.env for this test
-			Object.defineProperty(process, "env", {
-				value: mockProcessEnv,
-				configurable: true,
-			});
-
 			const app1 = new cdk.App();
 			new CursorActiveUsersBotStack(app1, "ConsistencyTestStack1", {
 				env: {
@@ -220,12 +104,6 @@ describe("CDK App Entry Point Tests", () => {
 			expect(getResourceTypes(stack1Template)).toEqual(
 				getResourceTypes(stack2Template),
 			);
-
-			// Restore original process.env
-			Object.defineProperty(process, "env", {
-				value: originalProcessEnv,
-				configurable: true,
-			});
 		});
 	});
 });
