@@ -63,10 +63,12 @@ export class CursorActiveUsersBotStack extends cdk.Stack {
 				runtime: lambda.Runtime.NODEJS_22_X,
 				entry: path.join(__dirname, "../src/lambda/index.ts"), // Path to the lambda handler file
 				handler: "handler", // Function name in index.ts
-				timeout: cdk.Duration.minutes(1), // Adjust timeout as needed
-				memorySize: 256, // Adjust memory as needed
+				timeout: cdk.Duration.minutes(5), // Increased from 1 minute to handle more processing
+				memorySize: 512, // Increased from 256MB to handle more users
 				environment: {
 					SECRETS_ARN: apiSecrets.secretArn,
+					NOTIFY_AFTER_DAYS: "60", // Default: 60 days for DM notifications
+					REMOVE_AFTER_DAYS: "90", // Default: 90 days for removal candidates
 					// AWS_ACCOUNT and AWS_REGION are typically implicitly handled by CDK based on context/profile
 					// but can be passed if the lambda needs them for other AWS SDK calls unrelated to its own execution region/account.
 				},
@@ -76,18 +78,18 @@ export class CursorActiveUsersBotStack extends cdk.Stack {
 		// Grant the Lambda function read access to the secret
 		apiSecrets.grantRead(inactiveUserCheckerLambda);
 
-		// Define the EventBridge rule to run the Lambda monthly
-		// Runs at 00:00 UTC on the 1st day of every month
-		const rule = new events.Rule(this, "MonthlyInactiveUserCheckRule", {
+		// Define the EventBridge rule to run the Lambda weekly
+		// Runs at 09:00 UTC every Monday
+		const rule = new events.Rule(this, "WeeklyInactiveUserCheckRule", {
 			schedule: events.Schedule.cron({
 				minute: "0",
-				hour: "0",
-				day: "1",
+				hour: "9",
+				weekDay: "MON", // Every Monday
 				month: "*", // Every month
 				year: "*", // Every year
 			}),
 			description:
-				"Triggers the inactive user checker Lambda function monthly.",
+				"Triggers the inactive user checker Lambda function weekly on Mondays at 9 AM UTC.",
 		});
 
 		// Set the Lambda function as the target for the EventBridge rule
@@ -97,6 +99,12 @@ export class CursorActiveUsersBotStack extends cdk.Stack {
 		new cdk.CfnOutput(this, "LambdaFunctionName", {
 			value: inactiveUserCheckerLambda.functionName,
 			description: "Name of the Inactive User Checker Lambda function",
+		});
+
+		// Output the schedule information
+		new cdk.CfnOutput(this, "ScheduleInfo", {
+			value: "Runs weekly on Mondays at 9:00 AM UTC",
+			description: "Lambda execution schedule",
 		});
 	}
 }

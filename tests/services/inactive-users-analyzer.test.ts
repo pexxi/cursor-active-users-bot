@@ -5,6 +5,8 @@ import type {
 import {
 	findInactiveUsers,
 	getUsageDataDateRange,
+	categorizeInactiveUsers,
+	type CategorizedInactiveUsers,
 } from "../../src/services/inactive-users-analyzer";
 
 describe("InactiveUsersAnalyzer", () => {
@@ -94,8 +96,8 @@ describe("InactiveUsersAnalyzer", () => {
 				// No data for 'nodata@example.com'
 			];
 
-			// Filter data to only include last 2 months (simulate what would happen in real usage)
-			const { startDateEpochMs } = getUsageDataDateRange(2);
+			// Filter data to only include last 60 days (simulate what would happen in real usage)
+			const { startDateEpochMs } = getUsageDataDateRange(60);
 			const filteredUsageData = mockUsageData.filter(
 				(data) => data.date >= startDateEpochMs,
 			);
@@ -172,14 +174,14 @@ describe("InactiveUsersAnalyzer", () => {
 			expect(inactiveUsers).toHaveLength(0);
 		});
 
-		it("should use custom months threshold correctly", () => {
+		it("should use custom days threshold correctly", () => {
 			const now = Date.now();
-			const threeMonthsAgo = now - 90 * 24 * 60 * 60 * 1000;
-			const fiveMonthsAgo = now - 150 * 24 * 60 * 60 * 1000;
+			const nineDaysAgo = now - 90 * 24 * 60 * 60 * 1000;
+			const oneHundredFiftyDaysAgo = now - 150 * 24 * 60 * 60 * 1000;
 
 			const mockUsageData: DailyUsageData[] = [
 				{
-					date: threeMonthsAgo,
+					date: nineDaysAgo,
 					isActive: true,
 					email: "active@example.com",
 					totalLinesAdded: 100,
@@ -202,7 +204,7 @@ describe("InactiveUsersAnalyzer", () => {
 					mostUsedModel: "gpt-4",
 				},
 				{
-					date: fiveMonthsAgo,
+					date: oneHundredFiftyDaysAgo,
 					isActive: true,
 					email: "inactive@example.com",
 					totalLinesAdded: 50,
@@ -228,8 +230,8 @@ describe("InactiveUsersAnalyzer", () => {
 
 			const testUsers = mockMembers.slice(0, 2); // Only first two users
 
-			// With 4 months threshold, filter data to include last 4 months
-			const { startDateEpochMs } = getUsageDataDateRange(4);
+			// With 120 days threshold, filter data to include last 120 days
+			const { startDateEpochMs } = getUsageDataDateRange(120);
 			const filteredUsageData = mockUsageData.filter(
 				(data) => data.date >= startDateEpochMs,
 			);
@@ -239,9 +241,9 @@ describe("InactiveUsersAnalyzer", () => {
 				filteredUsageData,
 			);
 
-			// With 4 months threshold:
-			// - 'active@example.com' has activity from 3 months ago (within threshold) → active
-			// - 'inactive@example.com' has activity from 5 months ago (outside threshold) → inactive
+			// With 120 days threshold:
+			// - 'active@example.com' has activity from 90 days ago (within threshold) → active
+			// - 'inactive@example.com' has activity from 150 days ago (outside threshold) → inactive
 			expect(inactiveUsersWithLongerThreshold).toHaveLength(1);
 			expect(inactiveUsersWithLongerThreshold[0].email).toBe(
 				"inactive@example.com",
@@ -250,18 +252,18 @@ describe("InactiveUsersAnalyzer", () => {
 	});
 
 	describe("getUsageDataDateRange", () => {
-		it("should calculate correct date range for default 2 months", () => {
+		it("should calculate correct date range for 60 days", () => {
 			const beforeTest = Date.now();
-			const { startDateEpochMs, endDateEpochMs } = getUsageDataDateRange();
+			const { startDateEpochMs, endDateEpochMs } = getUsageDataDateRange(60);
 			const afterTest = Date.now();
 
 			// End date should be close to now
 			expect(endDateEpochMs).toBeGreaterThanOrEqual(beforeTest);
 			expect(endDateEpochMs).toBeLessThanOrEqual(afterTest);
 
-			// Start date should be approximately 2 months ago
+			// Start date should be approximately 60 days ago
 			const expectedStartDate = new Date();
-			expectedStartDate.setMonth(expectedStartDate.getMonth() - 2);
+			expectedStartDate.setDate(expectedStartDate.getDate() - 60);
 			const tolerance = 1000; // 1 second tolerance
 
 			expect(startDateEpochMs).toBeGreaterThanOrEqual(
@@ -272,20 +274,20 @@ describe("InactiveUsersAnalyzer", () => {
 			);
 		});
 
-		it("should calculate correct date range for custom months", () => {
-			const monthsBack = 6;
+		it("should calculate correct date range for custom days", () => {
+			const daysBack = 180;
 			const beforeTest = Date.now();
 			const { startDateEpochMs, endDateEpochMs } =
-				getUsageDataDateRange(monthsBack);
+				getUsageDataDateRange(daysBack);
 			const afterTest = Date.now();
 
 			// End date should be close to now
 			expect(endDateEpochMs).toBeGreaterThanOrEqual(beforeTest);
 			expect(endDateEpochMs).toBeLessThanOrEqual(afterTest);
 
-			// Start date should be approximately 6 months ago
+			// Start date should be approximately 180 days ago
 			const expectedStartDate = new Date();
-			expectedStartDate.setMonth(expectedStartDate.getMonth() - monthsBack);
+			expectedStartDate.setDate(expectedStartDate.getDate() - daysBack);
 			const tolerance = 1000; // 1 second tolerance
 
 			expect(startDateEpochMs).toBeGreaterThanOrEqual(
@@ -294,6 +296,196 @@ describe("InactiveUsersAnalyzer", () => {
 			expect(startDateEpochMs).toBeLessThanOrEqual(
 				expectedStartDate.getTime() + tolerance,
 			);
+		});
+	});
+
+	describe("categorizeInactiveUsers", () => {
+		it("should correctly categorize users into notify and remove groups", () => {
+			const now = Date.now();
+			const fiftyDaysAgo = now - 50 * 24 * 60 * 60 * 1000;
+			const seventyDaysAgo = now - 70 * 24 * 60 * 60 * 1000;
+			const oneHundredDaysAgo = now - 100 * 24 * 60 * 60 * 1000;
+
+			// Usage data for notification period (60 days)
+			const notifyPeriodUsage: DailyUsageData[] = [
+				{
+					date: fiftyDaysAgo,
+					isActive: true,
+					email: "recently-active@example.com",
+					totalLinesAdded: 100,
+					totalLinesDeleted: 50,
+					acceptedLinesAdded: 80,
+					acceptedLinesDeleted: 30,
+					totalApplies: 10,
+					totalAccepts: 8,
+					totalRejects: 2,
+					totalTabsShown: 20,
+					totalTabsAccepted: 15,
+					composerRequests: 5,
+					chatRequests: 10,
+					agentRequests: 2,
+					cmdkUsages: 8,
+					subscriptionIncludedReqs: 15,
+					apiKeyReqs: 0,
+					usageBasedReqs: 0,
+					bugbotUsages: 1,
+					mostUsedModel: "gpt-4",
+				},
+			];
+
+			// Usage data for removal period (90 days)
+			const removePeriodUsage: DailyUsageData[] = [
+				{
+					date: fiftyDaysAgo,
+					isActive: true,
+					email: "recently-active@example.com",
+					totalLinesAdded: 100,
+					totalLinesDeleted: 50,
+					acceptedLinesAdded: 80,
+					acceptedLinesDeleted: 30,
+					totalApplies: 10,
+					totalAccepts: 8,
+					totalRejects: 2,
+					totalTabsShown: 20,
+					totalTabsAccepted: 15,
+					composerRequests: 5,
+					chatRequests: 10,
+					agentRequests: 2,
+					cmdkUsages: 8,
+					subscriptionIncludedReqs: 15,
+					apiKeyReqs: 0,
+					usageBasedReqs: 0,
+					bugbotUsages: 1,
+					mostUsedModel: "gpt-4",
+				},
+				{
+					date: seventyDaysAgo,
+					isActive: true,
+					email: "moderately-inactive@example.com",
+					totalLinesAdded: 50,
+					totalLinesDeleted: 25,
+					acceptedLinesAdded: 40,
+					acceptedLinesDeleted: 15,
+					totalApplies: 5,
+					totalAccepts: 4,
+					totalRejects: 1,
+					totalTabsShown: 10,
+					totalTabsAccepted: 8,
+					composerRequests: 2,
+					chatRequests: 5,
+					agentRequests: 1,
+					cmdkUsages: 4,
+					subscriptionIncludedReqs: 8,
+					apiKeyReqs: 0,
+					usageBasedReqs: 0,
+					bugbotUsages: 0,
+					mostUsedModel: "gpt-3.5-turbo",
+				},
+			];
+
+			const testUsers: CursorUser[] = [
+				{
+					name: "Recently Active",
+					email: "recently-active@example.com",
+					role: "member",
+				},
+				{
+					name: "Moderately Inactive",
+					email: "moderately-inactive@example.com",
+					role: "member",
+				},
+				{
+					name: "Very Inactive",
+					email: "very-inactive@example.com",
+					role: "member",
+				},
+			];
+
+			const result = categorizeInactiveUsers(
+				testUsers,
+				notifyPeriodUsage,
+				removePeriodUsage,
+			);
+
+			// recently-active@example.com should not be in either list (active within 60 days)
+			expect(result.usersToNotify).not.toContainEqual({
+				name: "Recently Active",
+				email: "recently-active@example.com",
+			});
+			expect(result.usersToRemove).not.toContainEqual({
+				name: "Recently Active",
+				email: "recently-active@example.com",
+			});
+
+			// moderately-inactive@example.com should be in usersToNotify but not usersToRemove
+			// (inactive for 60+ days but active within 90 days)
+			expect(result.usersToNotify).toContainEqual({
+				name: "Moderately Inactive",
+				email: "moderately-inactive@example.com",
+			});
+			expect(result.usersToRemove).not.toContainEqual({
+				name: "Moderately Inactive",
+				email: "moderately-inactive@example.com",
+			});
+
+			// very-inactive@example.com should be in both lists (no activity in either period)
+			expect(result.usersToNotify).toContainEqual({
+				name: "Very Inactive",
+				email: "very-inactive@example.com",
+			});
+			expect(result.usersToRemove).toContainEqual({
+				name: "Very Inactive",
+				email: "very-inactive@example.com",
+			});
+
+			expect(result.usersToNotify).toHaveLength(2);
+			expect(result.usersToRemove).toHaveLength(1);
+		});
+
+		it("should handle empty usage data", () => {
+			const testUsers: CursorUser[] = [
+				{ name: "User One", email: "user1@example.com", role: "member" },
+				{ name: "User Two", email: "user2@example.com", role: "member" },
+			];
+
+			const result = categorizeInactiveUsers(testUsers, [], []);
+
+			// All users should be in both categories when there's no usage data
+			expect(result.usersToNotify).toHaveLength(2);
+			expect(result.usersToRemove).toHaveLength(2);
+		});
+
+		it("should handle empty members list", () => {
+			const mockUsageData: DailyUsageData[] = [
+				{
+					date: Date.now(),
+					isActive: true,
+					email: "nonexistent@example.com",
+					totalLinesAdded: 100,
+					totalLinesDeleted: 50,
+					acceptedLinesAdded: 80,
+					acceptedLinesDeleted: 30,
+					totalApplies: 10,
+					totalAccepts: 8,
+					totalRejects: 2,
+					totalTabsShown: 20,
+					totalTabsAccepted: 15,
+					composerRequests: 5,
+					chatRequests: 10,
+					agentRequests: 2,
+					cmdkUsages: 8,
+					subscriptionIncludedReqs: 15,
+					apiKeyReqs: 0,
+					usageBasedReqs: 0,
+					bugbotUsages: 1,
+					mostUsedModel: "gpt-4",
+				},
+			];
+
+			const result = categorizeInactiveUsers([], mockUsageData, mockUsageData);
+
+			expect(result.usersToNotify).toHaveLength(0);
+			expect(result.usersToRemove).toHaveLength(0);
 		});
 	});
 });

@@ -37,12 +37,12 @@ describe("CursorActiveUsersBotStack Infrastructure Tests", () => {
 			template.hasResourceProperties("AWS::Lambda::Function", {
 				Runtime: "nodejs22.x",
 				Handler: "index.handler",
-				MemorySize: 256,
-				Timeout: 60,
+				MemorySize: 512,
+				Timeout: 300,
 			});
 		});
 
-		it("should have environment variable for secrets ARN", () => {
+		it("should have environment variables for configuration", () => {
 			const lambdaResources = template.findResources("AWS::Lambda::Function");
 			const lambdaResource = Object.values(lambdaResources)[0] as any;
 
@@ -52,6 +52,12 @@ describe("CursorActiveUsersBotStack Infrastructure Tests", () => {
 			expect(
 				lambdaResource.Properties.Environment.Variables.SECRETS_ARN.Ref,
 			).toBeDefined();
+			expect(
+				lambdaResource.Properties.Environment.Variables.NOTIFY_AFTER_DAYS,
+			).toBe("60");
+			expect(
+				lambdaResource.Properties.Environment.Variables.REMOVE_AFTER_DAYS,
+			).toBe("90");
 		});
 
 		it("should match Lambda function snapshot", () => {
@@ -91,11 +97,11 @@ describe("CursorActiveUsersBotStack Infrastructure Tests", () => {
 	});
 
 	describe("EventBridge Rule", () => {
-		it("should create a scheduled rule for monthly execution", () => {
+		it("should create a scheduled rule for weekly execution", () => {
 			template.hasResourceProperties("AWS::Events::Rule", {
-				ScheduleExpression: "cron(0 0 1 * ? *)",
+				ScheduleExpression: "cron(0 9 ? * MON *)",
 				Description:
-					"Triggers the inactive user checker Lambda function monthly.",
+					"Triggers the inactive user checker Lambda function weekly on Mondays at 9 AM UTC.",
 				State: "ENABLED",
 			});
 		});
@@ -176,6 +182,12 @@ describe("CursorActiveUsersBotStack Infrastructure Tests", () => {
 		it("should create output for Lambda function name", () => {
 			template.hasOutput("LambdaFunctionName", {
 				Description: "Name of the Inactive User Checker Lambda function",
+			});
+		});
+
+		it("should create output for schedule information", () => {
+			template.hasOutput("ScheduleInfo", {
+				Description: "Lambda execution schedule",
 			});
 		});
 

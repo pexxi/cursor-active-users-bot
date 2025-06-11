@@ -1,6 +1,11 @@
 import type { CursorUser, DailyUsageData } from "./cursor-admin-api";
 import type { InactiveUser } from "./slack-api";
 
+export interface CategorizedInactiveUsers {
+	usersToNotify: InactiveUser[];
+	usersToRemove: InactiveUser[];
+}
+
 /**
  * Find users who have no active entries in the provided usage data
  * @param members Array of team members
@@ -30,13 +35,37 @@ export function findInactiveUsers(
 }
 
 /**
+ * Categorize inactive users into notification and removal candidates
+ * @param members Array of team members
+ * @param notifyPeriodUsage Usage data for notification period
+ * @param removePeriodUsage Usage data for removal period
+ * @returns Categorized inactive users
+ */
+export function categorizeInactiveUsers(
+	members: CursorUser[],
+	notifyPeriodUsage: DailyUsageData[],
+	removePeriodUsage: DailyUsageData[],
+): CategorizedInactiveUsers {
+	// Find users inactive for notification period
+	const usersToNotify = findInactiveUsers(members, notifyPeriodUsage);
+
+	// Find users inactive for removal period
+	const usersToRemove = findInactiveUsers(members, removePeriodUsage);
+
+	return {
+		usersToNotify,
+		usersToRemove,
+	};
+}
+
+/**
  * Calculate date range for fetching usage data
- * @param monthsBack Number of months to go back (default: 2)
+ * @param daysBack Number of days to go back
  * @returns Object with start and end date in epoch milliseconds
  */
-export function getUsageDataDateRange(monthsBack = 2) {
+export function getUsageDataDateRange(daysBack: number) {
 	const startDate = new Date();
-	startDate.setMonth(startDate.getMonth() - monthsBack);
+	startDate.setDate(startDate.getDate() - daysBack);
 	const endDate = new Date();
 
 	return {
