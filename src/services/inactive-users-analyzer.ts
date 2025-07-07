@@ -52,20 +52,9 @@ export function categorizeInactiveUsers(
 	// Find users inactive for removal period
 	const usersToRemove = findInactiveUsers(members, removePeriodUsage);
 
-	// testing
 	return {
-		usersToNotify: [
-			{
-				email: "pekka.kokkonen@gofore.com",
-				name: "Pekka Kokkonen",
-			},
-		],
-		usersToRemove: [
-			{
-				email: "pekka.kokkonen@gofore.com",
-				name: "Pekka Kokkonen",
-			},
-		],
+		usersToNotify,
+		usersToRemove,
 	};
 }
 

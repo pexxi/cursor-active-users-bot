@@ -55,7 +55,7 @@ exports[`CursorActiveUsersBotStack Infrastructure Tests Complete Stack Snapshot 
       "Properties": {
         "Code": {
           "S3Bucket": "cdk-hnb659fds-assets-123456789012-us-east-1",
-          "S3Key": "b660c8407f5bffd0edabb35ed8e852e4edf0fa104b3a5e6e4de48b5c60fd94fb.zip",
+          "S3Key": "STATIC_ASSET_KEY.zip",
         },
         "Environment": {
           "Variables": {
@@ -326,7 +326,7 @@ exports[`CursorActiveUsersBotStack Infrastructure Tests Lambda Function should m
     "Properties": {
       "Code": {
         "S3Bucket": "cdk-hnb659fds-assets-123456789012-us-east-1",
-        "S3Key": "b660c8407f5bffd0edabb35ed8e852e4edf0fa104b3a5e6e4de48b5c60fd94fb.zip",
+        "S3Key": "STATIC_ASSET_KEY.zip",
       },
       "Environment": {
         "Variables": {

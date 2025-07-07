@@ -1,8 +1,16 @@
 {
-	"$schema": "https://biomejs.dev/schemas/1.9.4/schema.json",
+	"$schema": "https://biomejs.dev/schemas/2.0.6/schema.json",
 	"files": {
-		"include": ["**/*.ts", "**/*.tsx", "**/*.js", "**/*.jsx"],
-		"ignore": ["node_modules/**", "cdk.out/**", "coverage/**", "dist/**"]
+		"includes": [
+			"**/*.ts",
+			"**/*.tsx",
+			"**/*.js",
+			"**/*.jsx",
+			"!**/node_modules/**",
+			"!**/cdk.out/**",
+			"!**/coverage/**",
+			"!**/dist/**"
+		]
 	},
 	"linter": {
 		"enabled": true,
@@ -10,12 +18,24 @@
 			"recommended": true,
 			"suspicious": {
 				"noExplicitAny": "off"
+			},
+			"style": {
+				"noParameterAssign": "error",
+				"useAsConstAssertion": "error",
+				"useDefaultParameterLast": "error",
+				"useEnumInitializers": "error",
+				"useSelfClosingElements": "error",
+				"useSingleVarDeclarator": "error",
+				"noUnusedTemplateLiteral": "error",
+				"useNumberNamespace": "error",
+				"noInferrableTypes": "error",
+				"noUselessElse": "error"
 			}
 		}
 	},
 	"overrides": [
 		{
-			"include": ["tests/**/*.ts", "**/*.test.ts", "**/*.spec.ts"],
+			"includes": ["**/tests/**/*.ts", "**/*.test.ts", "**/*.spec.ts"],
 			"linter": {
 				"rules": {
 					"suspicious": {
@@ -33,9 +53,7 @@
 		"lineEnding": "lf",
 		"lineWidth": 80
 	},
-	"organizeImports": {
-		"enabled": true
-	},
+	"assist": { "actions": { "source": { "organizeImports": "on" } } },
 	"javascript": {
 		"formatter": {
 			"quoteStyle": "double",

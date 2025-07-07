@@ -1,9 +1,9 @@
-import { CursorOperations } from "../../src/services/cursor-operations";
 import { CursorAdminApi } from "../../src/apis/cursor-admin-api";
+import { CursorOperations } from "../../src/services/cursor-operations";
 import * as inactiveUsersAnalyzer from "../../src/services/inactive-users-analyzer";
 
 // Mock the dependencies
-jest.mock("../../src/services/cursor-admin-api");
+jest.mock("../../src/apis/cursor-admin-api");
 jest.mock("../../src/services/inactive-users-analyzer");
 
 const mockCursorAdminApi = CursorAdminApi as jest.MockedClass<

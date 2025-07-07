@@ -6,7 +6,6 @@ import {
 	findInactiveUsers,
 	getUsageDataDateRange,
 	categorizeInactiveUsers,
-	type CategorizedInactiveUsers,
 } from "../../src/services/inactive-users-analyzer";
 
 describe("InactiveUsersAnalyzer", () => {
@@ -304,7 +303,7 @@ describe("InactiveUsersAnalyzer", () => {
 			const now = Date.now();
 			const fiftyDaysAgo = now - 50 * 24 * 60 * 60 * 1000;
 			const seventyDaysAgo = now - 70 * 24 * 60 * 60 * 1000;
-			const oneHundredDaysAgo = now - 100 * 24 * 60 * 60 * 1000;
+			const _oneHundredDaysAgo = now - 100 * 24 * 60 * 60 * 1000;
 
 			// Usage data for notification period (60 days)
 			const notifyPeriodUsage: DailyUsageData[] = [

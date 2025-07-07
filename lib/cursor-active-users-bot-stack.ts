@@ -25,8 +25,8 @@ export class CursorActiveUsersBotStack extends cdk.Stack {
 
 		// For testing, we can get account and region from props.env
 		// For actual deployment, we need them from environment variables
-		const account = props?.env?.account || process.env.AWS_ACCOUNT;
-		const region = props?.env?.region || process.env.AWS_REGION;
+		const _account = props?.env?.account || process.env.AWS_ACCOUNT;
+		const _region = props?.env?.region || process.env.AWS_REGION;
 
 		// Only check environment variables if not provided via props (for actual deployment)
 		if (!props?.env && (!process.env.AWS_ACCOUNT || !process.env.AWS_REGION)) {
