@@ -1,4 +1,4 @@
-// Jest Snapshot v1, https://goo.gl/fbAQLP
+// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing
 
 exports[`CursorActiveUsersBotStack Infrastructure Tests CloudFormation Outputs should match outputs snapshot: cloudformation-outputs 1`] = `
 {
@@ -55,7 +55,7 @@ exports[`CursorActiveUsersBotStack Infrastructure Tests Complete Stack Snapshot 
       "Properties": {
         "Code": {
           "S3Bucket": "cdk-hnb659fds-assets-123456789012-us-east-1",
-          "S3Key": "ec634206cff3cc52dbd9c58c322630441f3e896e105263f1ca4cdb609d757244.zip",
+          "S3Key": "b660c8407f5bffd0edabb35ed8e852e4edf0fa104b3a5e6e4de48b5c60fd94fb.zip",
         },
         "Environment": {
           "Variables": {
@@ -326,7 +326,7 @@ exports[`CursorActiveUsersBotStack Infrastructure Tests Lambda Function should m
     "Properties": {
       "Code": {
         "S3Bucket": "cdk-hnb659fds-assets-123456789012-us-east-1",
-        "S3Key": "ec634206cff3cc52dbd9c58c322630441f3e896e105263f1ca4cdb609d757244.zip",
+        "S3Key": "b660c8407f5bffd0edabb35ed8e852e4edf0fa104b3a5e6e4de48b5c60fd94fb.zip",
       },
       "Environment": {
         "Variables": {

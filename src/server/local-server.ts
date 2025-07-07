@@ -4,12 +4,12 @@ import express, {
 	type Response,
 	type NextFunction,
 } from "express";
-import { CursorAdminApi } from "../services/cursor-admin-api";
+import { CursorAdminApi } from "../apis/cursor-admin-api";
 import {
 	findInactiveUsers,
 	getUsageDataDateRange,
 } from "../services/inactive-users-analyzer";
-import { SlackApi } from "../services/slack-api";
+import { SlackApi } from "../apis/slack-api";
 
 dotenv.config();
 
@@ -162,16 +162,17 @@ app.post("/check-inactive-users", async (req: Request, res: Response) => {
 			monthsBack && typeof monthsBack === "number" ? monthsBack : 2;
 
 		if (months < 1 || months > 12) {
-			return res.status(400).json({
+			res.status(400).json({
 				error: "monthsBack must be between 1 and 12",
 			});
+			return;
 		}
 
 		const result = await checkInactiveUsers(months);
-		return res.json(result);
+		res.json(result);
 	} catch (error) {
 		console.error("Error in /check-inactive-users endpoint:", error);
-		return res.status(500).json({
+		res.status(500).json({
 			error: "Internal server error",
 			message: error instanceof Error ? error.message : "Unknown error",
 		});

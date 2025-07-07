@@ -1,7 +1,7 @@
 import type {
 	CursorUser,
 	DailyUsageData,
-} from "../../src/services/cursor-admin-api";
+} from "../../src/apis/cursor-admin-api";
 import {
 	findInactiveUsers,
 	getUsageDataDateRange,

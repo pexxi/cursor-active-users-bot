@@ -4,7 +4,7 @@ import {
 	type CursorDailyUsageResponse,
 	type CursorTeamMembersResponse,
 	type CursorUser,
-} from "../../src/services/cursor-admin-api";
+} from "../../src/apis/cursor-admin-api";
 
 // Mock axios
 jest.mock("axios");

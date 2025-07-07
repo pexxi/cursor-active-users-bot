@@ -1,5 +1,5 @@
 import { App } from "@slack/bolt";
-import { type InactiveUser, SlackApi } from "../../src/services/slack-api";
+import { type InactiveUser, SlackApi } from "../../src/apis/slack-api";
 
 // Mock the Slack Bolt App
 jest.mock("@slack/bolt");

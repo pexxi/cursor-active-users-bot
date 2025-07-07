@@ -1,5 +1,5 @@
-import type { CursorUser, DailyUsageData } from "./cursor-admin-api";
-import type { InactiveUser } from "./slack-api";
+import type { CursorUser, DailyUsageData } from "../apis/cursor-admin-api";
+import type { InactiveUser } from "../apis/slack-api";
 
 export interface CategorizedInactiveUsers {
 	usersToNotify: InactiveUser[];
