@@ -16,11 +16,7 @@ interface CursorActiveUsersBotStackProps extends cdk.StackProps {
 }
 
 export class CursorActiveUsersBotStack extends cdk.Stack {
-	constructor(
-		scope: Construct,
-		id: string,
-		props?: CursorActiveUsersBotStackProps,
-	) {
+	constructor(scope: Construct, id: string, props?: CursorActiveUsersBotStackProps) {
 		super(scope, id, props);
 
 		// For testing, we can get account and region from props.env
@@ -40,40 +36,33 @@ export class CursorActiveUsersBotStack extends cdk.Stack {
 			secretName: "CursorActiveUserBotSecrets",
 			description: "API keys for Cursor and Slack bots",
 			secretObjectValue: {
-				CURSOR_API_KEY: SecretValue.unsafePlainText(
-					"YOUR_CURSOR_API_KEY_PLACEHOLDER",
-				),
-				SLACK_BOT_TOKEN: SecretValue.unsafePlainText(
-					"YOUR_SLACK_BOT_TOKEN_PLACEHOLDER",
-				),
-				SLACK_USER_ID: SecretValue.unsafePlainText(
-					"YOUR_SLACK_USER_ID_PLACEHOLDER",
-				),
-				SLACK_SIGNING_SECRET: SecretValue.unsafePlainText(
-					"YOUR_SLACK_SIGNING_SECRET_PLACEHOLDER",
-				),
+				CURSOR_API_KEY: SecretValue.unsafePlainText("YOUR_CURSOR_API_KEY_PLACEHOLDER"),
+				GITHUB_TOKEN: SecretValue.unsafePlainText("YOUR_GITHUB_TOKEN_PLACEHOLDER"),
+				GITHUB_ORG: SecretValue.unsafePlainText("YOUR_GITHUB_ORG_PLACEHOLDER"),
+				SLACK_BOT_TOKEN: SecretValue.unsafePlainText("YOUR_SLACK_BOT_TOKEN_PLACEHOLDER"),
+				SLACK_USER_ID: SecretValue.unsafePlainText("YOUR_SLACK_USER_ID_PLACEHOLDER"),
+				SLACK_SIGNING_SECRET: SecretValue.unsafePlainText("YOUR_SLACK_SIGNING_SECRET_PLACEHOLDER"),
 			},
 		});
 
 		// Define the Lambda function
-		const inactiveUserCheckerLambda = new NodejsFunction(
-			this,
-			"InactiveUserCheckerFunction",
-			{
-				runtime: lambda.Runtime.NODEJS_22_X,
-				entry: path.join(__dirname, "../src/lambda/index.ts"), // Path to the lambda handler file
-				handler: "handler", // Function name in index.ts
-				timeout: cdk.Duration.minutes(5), // Increased from 1 minute to handle more processing
-				memorySize: 512, // Increased from 256MB to handle more users
-				environment: {
-					SECRETS_ARN: apiSecrets.secretArn,
-					NOTIFY_AFTER_DAYS: "60", // Default: 60 days for DM notifications
-					REMOVE_AFTER_DAYS: "90", // Default: 90 days for removal candidates
-					// AWS_ACCOUNT and AWS_REGION are typically implicitly handled by CDK based on context/profile
-					// but can be passed if the lambda needs them for other AWS SDK calls unrelated to its own execution region/account.
-				},
+		const inactiveUserCheckerLambda = new NodejsFunction(this, "InactiveUserCheckerFunction", {
+			runtime: lambda.Runtime.NODEJS_22_X,
+			entry: path.join(__dirname, "../src/lambda/index.ts"), // Path to the lambda handler file
+			handler: "handler", // Function name in index.ts
+			timeout: cdk.Duration.minutes(5), // Increased from 1 minute to handle more processing
+			memorySize: 512, // Increased from 256MB to handle more users
+			environment: {
+				SECRETS_ARN: apiSecrets.secretArn,
+				NOTIFY_AFTER_DAYS: "60", // Default: 60 days for DM notifications
+				REMOVE_AFTER_DAYS: "90", // Default: 90 days for removal candidates
+				// AWS_ACCOUNT and AWS_REGION are typically implicitly handled by CDK based on context/profile
+				// but can be passed if the lambda needs them for other AWS SDK calls unrelated to its own execution region/account.
+				ENABLE_CURSOR: "true", // Enable Cursor API operations
+				ENABLE_GITHUB_COPILOT: "true", // Enable GitHub Copilot operations
+				ENABLE_NOTIFICATIONS: "true", // Enable Slack notifications
 			},
-		);
+		});
 
 		// Grant the Lambda function read access to the secret
 		apiSecrets.grantRead(inactiveUserCheckerLambda);
@@ -88,8 +77,7 @@ export class CursorActiveUsersBotStack extends cdk.Stack {
 				month: "*", // Every month
 				year: "*", // Every year
 			}),
-			description:
-				"Triggers the inactive user checker Lambda function weekly on Mondays at 9 AM UTC.",
+			description: "Triggers the inactive user checker Lambda function weekly on Mondays at 9 AM UTC.",
 		});
 
 		// Set the Lambda function as the target for the EventBridge rule

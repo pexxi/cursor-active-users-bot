@@ -1,5 +1,5 @@
 import { GetSecretValueCommand, SecretsManagerClient } from "@aws-sdk/client-secrets-manager";
-import { z } from "zod";
+import * as z from "zod/v4";
 import { getEnv } from "./env";
 
 // Zod schema for secrets validation
@@ -10,9 +10,6 @@ const SecretsSchema = z.object({
 	SLACK_BOT_TOKEN: z.string().min(1, "SLACK_BOT_TOKEN must be a non-empty string"),
 	SLACK_USER_ID: z.string().min(1, "SLACK_USER_ID must be a non-empty string"),
 	SLACK_SIGNING_SECRET: z.string().min(1, "SLACK_SIGNING_SECRET must be a non-empty string"),
-	NOTIFY_AFTER_DAYS: z.number().default(60),
-	REMOVE_AFTER_DAYS: z.number().default(90),
-	ENABLE_NOTIFICATIONS: z.boolean().default(true),
 });
 export type SecretsData = z.infer<typeof SecretsSchema>;
 
@@ -39,10 +36,8 @@ export async function fetchSecrets() {
 	// Validate secrets using Zod schema
 	const validationResult = SecretsSchema.safeParse(parsedSecrets);
 	if (!validationResult.success) {
-		const errorMessages = validationResult.error.errors
-			.map((err) => `${err.path.join(".")}: ${err.message}`)
-			.join(", ");
-		throw new Error(`Invalid secrets configuration: ${errorMessages}`);
+		console.error(z.prettifyError(validationResult.error));
+		throw new Error(`Invalid secrets configuration:\n${z.prettifyError(validationResult.error)}`);
 	}
 
 	console.log("Successfully fetched secrets from AWS Secrets Manager.");
@@ -50,17 +45,12 @@ export async function fetchSecrets() {
 	return validationResult.data;
 }
 
-const LocalSecretsSchema = SecretsSchema.extend({
-	GITHUB_ORG: z.string().min(1, "GITHUB_ORG must be a non-empty string"),
-});
-export type LocalSecretsData = z.infer<typeof LocalSecretsSchema>;
-
 /**
  * Load secrets from environment variables for local development
  */
-export function loadLocalSecrets(): LocalSecretsData {
+export function loadLocalSecrets(): SecretsData {
 	// Validate secrets using Zod schema
-	const validationResult = LocalSecretsSchema.safeParse({
+	const validationResult = SecretsSchema.safeParse({
 		CURSOR_API_KEY: process.env.CURSOR_API_KEY,
 		GITHUB_TOKEN: process.env.GITHUB_TOKEN,
 		GITHUB_ORG: process.env.GITHUB_ORG,
@@ -70,11 +60,11 @@ export function loadLocalSecrets(): LocalSecretsData {
 	});
 
 	if (!validationResult.success) {
-		const errorMessages = validationResult.error.errors
-			.map((err) => `${err.path.join(".")}: ${err.message}`)
-			.join(", ");
-		throw new Error(`Invalid secrets configuration: ${errorMessages}`);
+		console.error(z.prettifyError(validationResult.error));
+		throw new Error(`Invalid secrets configuration:\n${z.prettifyError(validationResult.error)}`);
 	}
+
+	console.log("SECRETS:\n", validationResult.data);
 
 	return validationResult.data;
 }

@@ -1,15 +1,11 @@
-import * as dotenv from "dotenv";
-import express, {
-	type NextFunction,
-	type Request,
-	type Response,
-} from "express";
+import express, { type NextFunction, type Request, type Response } from "express";
 import { CursorOperations } from "../services/cursor-operations";
 import { GitHubOperations } from "../services/github-operations";
 import { getEnv } from "../utils/env";
 import { loadLocalSecrets } from "../utils/secrets";
 
-dotenv.config();
+const env = getEnv(true);
+const secrets = loadLocalSecrets();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -23,20 +19,10 @@ async function checkInactiveCursorUsers() {
 	console.log("Starting inactive Cursor users check...");
 
 	try {
-		const env = getEnv();
-		const secrets = loadLocalSecrets();
-
-		if (!secrets.CURSOR_API_KEY) {
-			throw new Error("CURSOR_API_KEY environment variable is not set.");
-		}
 		const cursorOperations = new CursorOperations(secrets, env);
-
-		const { usersToNotify, usersToRemove } =
-			await cursorOperations.processInactiveUsers();
+		const { usersToNotify, usersToRemove } = await cursorOperations.processInactiveUsers();
 
 		return {
-			success: true,
-			message: `Cursor check complete. Notified ${usersToNotify.length} users, found ${usersToRemove.length} for removal.`,
 			usersToNotify,
 			usersToRemove,
 		};
@@ -53,16 +39,10 @@ async function checkInactiveGitHubUsers() {
 	console.log("Starting inactive GitHub Copilot users check...");
 
 	try {
-		const env = getEnv();
-		const secrets = loadLocalSecrets();
 		const githubOperations = new GitHubOperations(secrets, env);
-
-		const { usersToNotify, usersToRemove } =
-			await githubOperations.processInactiveUsers();
+		const { usersToNotify, usersToRemove } = await githubOperations.processInactiveUsers();
 
 		return {
-			success: true,
-			message: `GitHub Copilot check complete. Notified ${usersToNotify.length} users, found ${usersToRemove.length} for removal.`,
 			usersToNotify,
 			usersToRemove,
 		};

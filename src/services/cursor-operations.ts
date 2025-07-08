@@ -28,12 +28,12 @@ export class CursorOperations {
 
 	constructor(secrets: SecretsData, env: EnvData) {
 		this.cursorApi = new CursorAdminApi(secrets.CURSOR_API_KEY);
-		this.slackApi = new SlackApi(secrets.SLACK_BOT_TOKEN, secrets.SLACK_SIGNING_SECRET, env.ENABLE_NOTIFICATIONS);
+		this.slackApi = new SlackApi(secrets.SLACK_BOT_TOKEN, secrets.SLACK_SIGNING_SECRET, env.ENABLE_SLACK_NOTIFICATIONS);
 		// Use environment variables for notification and removal periods
-		this.notifyAfterDays = env.NOTIFY_AFTER_DAYS || 30; // Default to 30 days if not set
-		this.removeAfterDays = env.REMOVE_AFTER_DAYS || 90; // Default to 90 days if not set
-		this.notificationRecipient = secrets.SLACK_USER_ID || ""; // Default to empty string if not set
-		this.notificationsEnabled = env.ENABLE_NOTIFICATIONS || false; // Default to false if not set
+		this.notifyAfterDays = env.NOTIFY_AFTER_DAYS; // Default to 60 days if not set
+		this.removeAfterDays = env.REMOVE_AFTER_DAYS; // Default to 90 days if not set
+		this.notificationRecipient = secrets.SLACK_USER_ID; // Default to empty string if not set
+		this.notificationsEnabled = env.ENABLE_SLACK_NOTIFICATIONS; // Default to false if not set
 	}
 
 	/**
@@ -102,6 +102,7 @@ export class CursorOperations {
 				usersToRemove: [],
 			};
 		}
+		console.log(`Found ${members.length} team members.`);
 
 		// Fetch usage data
 		const [notifyUsageData, removeUsageData] = await Promise.all([
