@@ -1,4 +1,4 @@
-// Jest Snapshot v1, https://goo.gl/fbAQLP
+// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing
 
 exports[`CursorActiveUsersBotStack Infrastructure Tests CloudFormation Outputs should match outputs snapshot: cloudformation-outputs 1`] = `
 {
@@ -7,6 +7,10 @@ exports[`CursorActiveUsersBotStack Infrastructure Tests CloudFormation Outputs s
     "Value": {
       "Ref": "InactiveUserCheckerFunctionD51D6C82",
     },
+  },
+  "ScheduleInfo": {
+    "Description": "Lambda execution schedule",
+    "Value": "Runs weekly on Mondays at 9:00 AM UTC",
   },
 }
 `;
@@ -19,6 +23,10 @@ exports[`CursorActiveUsersBotStack Infrastructure Tests Complete Stack Snapshot 
       "Value": {
         "Ref": "InactiveUserCheckerFunctionD51D6C82",
       },
+    },
+    "ScheduleInfo": {
+      "Description": "Lambda execution schedule",
+      "Value": "Runs weekly on Mondays at 9:00 AM UTC",
     },
   },
   "Parameters": {
@@ -34,7 +42,7 @@ exports[`CursorActiveUsersBotStack Infrastructure Tests Complete Stack Snapshot 
       "Properties": {
         "Description": "API keys for Cursor and Slack bots",
         "Name": "CursorActiveUserBotSecrets",
-        "SecretString": "{"CURSOR_API_KEY":"YOUR_CURSOR_API_KEY_PLACEHOLDER","SLACK_BOT_TOKEN":"YOUR_SLACK_BOT_TOKEN_PLACEHOLDER","SLACK_USER_ID":"YOUR_SLACK_USER_ID_PLACEHOLDER","SLACK_SIGNING_SECRET":"YOUR_SLACK_SIGNING_SECRET_PLACEHOLDER"}",
+        "SecretString": "{"CURSOR_API_KEY":"YOUR_CURSOR_API_KEY_PLACEHOLDER","GITHUB_TOKEN":"YOUR_GITHUB_TOKEN_PLACEHOLDER","GITHUB_ORG":"YOUR_GITHUB_ORG_PLACEHOLDER","SLACK_BOT_TOKEN":"YOUR_SLACK_BOT_TOKEN_PLACEHOLDER","SLACK_USER_ID":"YOUR_SLACK_USER_ID_PLACEHOLDER","SLACK_SIGNING_SECRET":"YOUR_SLACK_SIGNING_SECRET_PLACEHOLDER"}",
       },
       "Type": "AWS::SecretsManager::Secret",
       "UpdateReplacePolicy": "Delete",
@@ -47,17 +55,22 @@ exports[`CursorActiveUsersBotStack Infrastructure Tests Complete Stack Snapshot 
       "Properties": {
         "Code": {
           "S3Bucket": "cdk-hnb659fds-assets-123456789012-us-east-1",
-          "S3Key": "eb557a64db962df4939179b4dca895e9849d25faefefd7eb4ffb965cbf4a818d.zip",
+          "S3Key": "STATIC_ASSET_KEY.zip",
         },
         "Environment": {
           "Variables": {
+            "ENABLE_CURSOR": "true",
+            "ENABLE_GITHUB_COPILOT": "true",
+            "ENABLE_NOTIFICATIONS": "true",
+            "NOTIFY_AFTER_DAYS": "60",
+            "REMOVE_AFTER_DAYS": "90",
             "SECRETS_ARN": {
               "Ref": "ApiSecretsED109BDA",
             },
           },
         },
         "Handler": "index.handler",
-        "MemorySize": 256,
+        "MemorySize": 512,
         "Role": {
           "Fn::GetAtt": [
             "InactiveUserCheckerFunctionServiceRoleF228211B",
@@ -65,7 +78,7 @@ exports[`CursorActiveUsersBotStack Infrastructure Tests Complete Stack Snapshot 
           ],
         },
         "Runtime": "nodejs22.x",
-        "Timeout": 60,
+        "Timeout": 300,
       },
       "Type": "AWS::Lambda::Function",
     },
@@ -126,10 +139,29 @@ exports[`CursorActiveUsersBotStack Infrastructure Tests Complete Stack Snapshot 
       },
       "Type": "AWS::IAM::Role",
     },
-    "MonthlyInactiveUserCheckRule14CE3D08": {
+    "WeeklyInactiveUserCheckRuleAllowEventRuleTestStackInactiveUserCheckerFunction4054795B2F7A268A": {
       "Properties": {
-        "Description": "Triggers the inactive user checker Lambda function monthly.",
-        "ScheduleExpression": "cron(0 0 1 * ? *)",
+        "Action": "lambda:InvokeFunction",
+        "FunctionName": {
+          "Fn::GetAtt": [
+            "InactiveUserCheckerFunctionD51D6C82",
+            "Arn",
+          ],
+        },
+        "Principal": "events.amazonaws.com",
+        "SourceArn": {
+          "Fn::GetAtt": [
+            "WeeklyInactiveUserCheckRuleFB167B9C",
+            "Arn",
+          ],
+        },
+      },
+      "Type": "AWS::Lambda::Permission",
+    },
+    "WeeklyInactiveUserCheckRuleFB167B9C": {
+      "Properties": {
+        "Description": "Triggers the inactive user checker Lambda function weekly on Mondays at 9 AM UTC.",
+        "ScheduleExpression": "cron(0 9 ? * MON *)",
         "State": "ENABLED",
         "Targets": [
           {
@@ -144,25 +176,6 @@ exports[`CursorActiveUsersBotStack Infrastructure Tests Complete Stack Snapshot 
         ],
       },
       "Type": "AWS::Events::Rule",
-    },
-    "MonthlyInactiveUserCheckRuleAllowEventRuleTestStackInactiveUserCheckerFunction4054795B368DC7E2": {
-      "Properties": {
-        "Action": "lambda:InvokeFunction",
-        "FunctionName": {
-          "Fn::GetAtt": [
-            "InactiveUserCheckerFunctionD51D6C82",
-            "Arn",
-          ],
-        },
-        "Principal": "events.amazonaws.com",
-        "SourceArn": {
-          "Fn::GetAtt": [
-            "MonthlyInactiveUserCheckRule14CE3D08",
-            "Arn",
-          ],
-        },
-      },
-      "Type": "AWS::Lambda::Permission",
     },
   },
   "Rules": {
@@ -197,10 +210,10 @@ exports[`CursorActiveUsersBotStack Infrastructure Tests Complete Stack Snapshot 
 
 exports[`CursorActiveUsersBotStack Infrastructure Tests EventBridge Rule should match EventBridge rule snapshot: eventbridge-rules 1`] = `
 {
-  "MonthlyInactiveUserCheckRule14CE3D08": {
+  "WeeklyInactiveUserCheckRuleFB167B9C": {
     "Properties": {
-      "Description": "Triggers the inactive user checker Lambda function monthly.",
-      "ScheduleExpression": "cron(0 0 1 * ? *)",
+      "Description": "Triggers the inactive user checker Lambda function weekly on Mondays at 9 AM UTC.",
+      "ScheduleExpression": "cron(0 9 ? * MON *)",
       "State": "ENABLED",
       "Targets": [
         {
@@ -222,7 +235,7 @@ exports[`CursorActiveUsersBotStack Infrastructure Tests EventBridge Rule should 
 exports[`CursorActiveUsersBotStack Infrastructure Tests IAM Permissions should match IAM resources snapshot: iam-resources 1`] = `
 {
   "permissions": {
-    "MonthlyInactiveUserCheckRuleAllowEventRuleTestStackInactiveUserCheckerFunction4054795B368DC7E2": {
+    "WeeklyInactiveUserCheckRuleAllowEventRuleTestStackInactiveUserCheckerFunction4054795B2F7A268A": {
       "Properties": {
         "Action": "lambda:InvokeFunction",
         "FunctionName": {
@@ -234,7 +247,7 @@ exports[`CursorActiveUsersBotStack Infrastructure Tests IAM Permissions should m
         "Principal": "events.amazonaws.com",
         "SourceArn": {
           "Fn::GetAtt": [
-            "MonthlyInactiveUserCheckRule14CE3D08",
+            "WeeklyInactiveUserCheckRuleFB167B9C",
             "Arn",
           ],
         },
@@ -316,17 +329,22 @@ exports[`CursorActiveUsersBotStack Infrastructure Tests Lambda Function should m
     "Properties": {
       "Code": {
         "S3Bucket": "cdk-hnb659fds-assets-123456789012-us-east-1",
-        "S3Key": "eb557a64db962df4939179b4dca895e9849d25faefefd7eb4ffb965cbf4a818d.zip",
+        "S3Key": "STATIC_ASSET_KEY.zip",
       },
       "Environment": {
         "Variables": {
+          "ENABLE_CURSOR": "true",
+          "ENABLE_GITHUB_COPILOT": "true",
+          "ENABLE_NOTIFICATIONS": "true",
+          "NOTIFY_AFTER_DAYS": "60",
+          "REMOVE_AFTER_DAYS": "90",
           "SECRETS_ARN": {
             "Ref": "ApiSecretsED109BDA",
           },
         },
       },
       "Handler": "index.handler",
-      "MemorySize": 256,
+      "MemorySize": 512,
       "Role": {
         "Fn::GetAtt": [
           "InactiveUserCheckerFunctionServiceRoleF228211B",
@@ -334,7 +352,7 @@ exports[`CursorActiveUsersBotStack Infrastructure Tests Lambda Function should m
         ],
       },
       "Runtime": "nodejs22.x",
-      "Timeout": 60,
+      "Timeout": 300,
     },
     "Type": "AWS::Lambda::Function",
   },
@@ -359,7 +377,7 @@ exports[`CursorActiveUsersBotStack Infrastructure Tests Secrets Manager should m
     "Properties": {
       "Description": "API keys for Cursor and Slack bots",
       "Name": "CursorActiveUserBotSecrets",
-      "SecretString": "{"CURSOR_API_KEY":"YOUR_CURSOR_API_KEY_PLACEHOLDER","SLACK_BOT_TOKEN":"YOUR_SLACK_BOT_TOKEN_PLACEHOLDER","SLACK_USER_ID":"YOUR_SLACK_USER_ID_PLACEHOLDER","SLACK_SIGNING_SECRET":"YOUR_SLACK_SIGNING_SECRET_PLACEHOLDER"}",
+      "SecretString": "{"CURSOR_API_KEY":"YOUR_CURSOR_API_KEY_PLACEHOLDER","GITHUB_TOKEN":"YOUR_GITHUB_TOKEN_PLACEHOLDER","GITHUB_ORG":"YOUR_GITHUB_ORG_PLACEHOLDER","SLACK_BOT_TOKEN":"YOUR_SLACK_BOT_TOKEN_PLACEHOLDER","SLACK_USER_ID":"YOUR_SLACK_USER_ID_PLACEHOLDER","SLACK_SIGNING_SECRET":"YOUR_SLACK_SIGNING_SECRET_PLACEHOLDER"}",
     },
     "Type": "AWS::SecretsManager::Secret",
     "UpdateReplacePolicy": "Delete",

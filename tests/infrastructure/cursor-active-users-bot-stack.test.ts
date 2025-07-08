@@ -1,6 +1,7 @@
 import * as cdk from "aws-cdk-lib";
 import { Template } from "aws-cdk-lib/assertions";
 import { CursorActiveUsersBotStack } from "../../lib/cursor-active-users-bot-stack";
+import { processS3Keys } from "../serializers/s3-key-serializer";
 
 // Mock environment variables for consistent testing
 const mockEnv = {
@@ -28,7 +29,8 @@ describe("CursorActiveUsersBotStack Infrastructure Tests", () => {
 
 	describe("Complete Stack Snapshot", () => {
 		it("should match the complete CloudFormation template snapshot", () => {
-			expect(template.toJSON()).toMatchSnapshot();
+			const templateJson = template.toJSON();
+			expect(processS3Keys(templateJson)).toMatchSnapshot();
 		});
 	});
 
@@ -37,12 +39,12 @@ describe("CursorActiveUsersBotStack Infrastructure Tests", () => {
 			template.hasResourceProperties("AWS::Lambda::Function", {
 				Runtime: "nodejs22.x",
 				Handler: "index.handler",
-				MemorySize: 256,
-				Timeout: 60,
+				MemorySize: 512,
+				Timeout: 300,
 			});
 		});
 
-		it("should have environment variable for secrets ARN", () => {
+		it("should have environment variables for configuration", () => {
 			const lambdaResources = template.findResources("AWS::Lambda::Function");
 			const lambdaResource = Object.values(lambdaResources)[0] as any;
 
@@ -52,11 +54,19 @@ describe("CursorActiveUsersBotStack Infrastructure Tests", () => {
 			expect(
 				lambdaResource.Properties.Environment.Variables.SECRETS_ARN.Ref,
 			).toBeDefined();
+			expect(
+				lambdaResource.Properties.Environment.Variables.NOTIFY_AFTER_DAYS,
+			).toBe("60");
+			expect(
+				lambdaResource.Properties.Environment.Variables.REMOVE_AFTER_DAYS,
+			).toBe("90");
 		});
 
 		it("should match Lambda function snapshot", () => {
 			const lambdaResources = template.findResources("AWS::Lambda::Function");
-			expect(lambdaResources).toMatchSnapshot("lambda-functions");
+			expect(processS3Keys(lambdaResources)).toMatchSnapshot(
+				"lambda-functions",
+			);
 		});
 	});
 
@@ -86,16 +96,16 @@ describe("CursorActiveUsersBotStack Infrastructure Tests", () => {
 			const secretResources = template.findResources(
 				"AWS::SecretsManager::Secret",
 			);
-			expect(secretResources).toMatchSnapshot("secrets-manager");
+			expect(processS3Keys(secretResources)).toMatchSnapshot("secrets-manager");
 		});
 	});
 
 	describe("EventBridge Rule", () => {
-		it("should create a scheduled rule for monthly execution", () => {
+		it("should create a scheduled rule for weekly execution", () => {
 			template.hasResourceProperties("AWS::Events::Rule", {
-				ScheduleExpression: "cron(0 0 1 * ? *)",
+				ScheduleExpression: "cron(0 9 ? * MON *)",
 				Description:
-					"Triggers the inactive user checker Lambda function monthly.",
+					"Triggers the inactive user checker Lambda function weekly on Mondays at 9 AM UTC.",
 				State: "ENABLED",
 			});
 		});
@@ -116,7 +126,7 @@ describe("CursorActiveUsersBotStack Infrastructure Tests", () => {
 
 		it("should match EventBridge rule snapshot", () => {
 			const ruleResources = template.findResources("AWS::Events::Rule");
-			expect(ruleResources).toMatchSnapshot("eventbridge-rules");
+			expect(processS3Keys(ruleResources)).toMatchSnapshot("eventbridge-rules");
 		});
 	});
 
@@ -164,11 +174,13 @@ describe("CursorActiveUsersBotStack Infrastructure Tests", () => {
 				"AWS::Lambda::Permission",
 			);
 
-			expect({
-				roles: iamRoles,
-				policies: iamPolicies,
-				permissions: lambdaPermissions,
-			}).toMatchSnapshot("iam-resources");
+			expect(
+				processS3Keys({
+					roles: iamRoles,
+					policies: iamPolicies,
+					permissions: lambdaPermissions,
+				}),
+			).toMatchSnapshot("iam-resources");
 		});
 	});
 
@@ -179,9 +191,15 @@ describe("CursorActiveUsersBotStack Infrastructure Tests", () => {
 			});
 		});
 
+		it("should create output for schedule information", () => {
+			template.hasOutput("ScheduleInfo", {
+				Description: "Lambda execution schedule",
+			});
+		});
+
 		it("should match outputs snapshot", () => {
 			const outputs = template.toJSON().Outputs;
-			expect(outputs).toMatchSnapshot("cloudformation-outputs");
+			expect(processS3Keys(outputs)).toMatchSnapshot("cloudformation-outputs");
 		});
 	});
 
@@ -197,7 +215,7 @@ describe("CursorActiveUsersBotStack Infrastructure Tests", () => {
 				{} as Record<string, number>,
 			);
 
-			expect(resourceCounts).toMatchSnapshot("resource-counts");
+			expect(processS3Keys(resourceCounts)).toMatchSnapshot("resource-counts");
 		});
 	});
 
