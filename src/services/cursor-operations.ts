@@ -1,19 +1,18 @@
-import { CursorAdminApi, type CursorUser } from "../apis/cursor-admin-api";
-import {
-	categorizeInactiveUsers,
-	getUsageDataDateRange,
-} from "./inactive-users-analyzer";
-import type { InactiveUser } from "../apis/slack-api";
+import { CursorAdminApi, type DailyUsageData } from "../apis/cursor-admin-api";
+import { SlackApi } from "../apis/slack-api";
+import type { User } from "../types/users";
+import { getUsageDataDateRange } from "../utils/dates";
+import type { EnvData } from "../utils/env";
+import type { SecretsData } from "../utils/secrets";
 
 export interface CursorOperationsResult {
-	members: CursorUser[];
-	usersToNotify: InactiveUser[];
-	usersToRemove: InactiveUser[];
+	members: User[];
+	usersToNotify: User[];
+	usersToRemove: User[];
 }
-
-export interface DateRangeInfo {
-	notifyDateRange: { startDateEpochMs: number; endDateEpochMs: number };
-	removeDateRange: { startDateEpochMs: number; endDateEpochMs: number };
+export interface CategorizedInactiveUsers {
+	usersToNotify: User[];
+	usersToRemove: User[];
 }
 
 /**
@@ -21,100 +20,81 @@ export interface DateRangeInfo {
  */
 export class CursorOperations {
 	private cursorApi: CursorAdminApi;
+	private slackApi: SlackApi;
+	private notifyAfterDays: number;
+	private removeAfterDays: number;
+	private notificationRecipient: string;
+	private notificationsEnabled: boolean;
 
-	constructor(apiKey: string) {
-		this.cursorApi = new CursorAdminApi(apiKey);
+	constructor(secrets: SecretsData, env: EnvData) {
+		this.cursorApi = new CursorAdminApi(secrets.CURSOR_API_KEY);
+		this.slackApi = new SlackApi(secrets.SLACK_BOT_TOKEN, secrets.SLACK_SIGNING_SECRET, env.ENABLE_NOTIFICATIONS);
+		// Use environment variables for notification and removal periods
+		this.notifyAfterDays = env.NOTIFY_AFTER_DAYS || 30; // Default to 30 days if not set
+		this.removeAfterDays = env.REMOVE_AFTER_DAYS || 90; // Default to 90 days if not set
+		this.notificationRecipient = secrets.SLACK_USER_ID || ""; // Default to empty string if not set
+		this.notificationsEnabled = env.ENABLE_NOTIFICATIONS || false; // Default to false if not set
 	}
 
 	/**
-	 * Get date ranges for notification and removal periods
+	 * Find users who have no active entries in the provided usage data
+	 * @param members Array of team members
+	 * @param usageDataEntries Array of usage data (already filtered by time period)
+	 * @returns Array of inactive users
 	 */
-	getDateRanges(
-		notifyAfterDays: number,
-		removeAfterDays: number,
-	): DateRangeInfo {
-		const notifyDateRange = getUsageDataDateRange(notifyAfterDays);
-		const removeDateRange = getUsageDataDateRange(removeAfterDays);
+	findInactiveUsers(members: User[], usageDataEntries: DailyUsageData[]): User[] {
+		// Build set of users who have been active
+		const activeUserEmails = new Set<string>();
 
-		console.log(
-			`Fetching usage data for notification period: last ${notifyAfterDays} days (${new Date(notifyDateRange.startDateEpochMs).toISOString()} to ${new Date(notifyDateRange.endDateEpochMs).toISOString()})`,
-		);
-		console.log(
-			`Fetching usage data for removal period: last ${removeAfterDays} days (${new Date(removeDateRange.startDateEpochMs).toISOString()} to ${new Date(removeDateRange.endDateEpochMs).toISOString()})`,
-		);
-
-		return { notifyDateRange, removeDateRange };
-	}
-
-	/**
-	 * Fetch team members from Cursor API
-	 */
-	async fetchTeamMembers(): Promise<CursorUser[]> {
-		try {
-			const members = await this.cursorApi.fetchTeamMembers();
-			console.log(`Fetched ${members.length} team members.`);
-
-			if (!members || members.length === 0) {
-				console.log("No members found in the Cursor team.");
-				return [];
+		for (const usageEntry of usageDataEntries) {
+			if (usageEntry.email && usageEntry.isActive) {
+				activeUserEmails.add(usageEntry.email);
 			}
-
-			return members;
-		} catch (error) {
-			console.error("Error fetching team members:", error);
-			throw new Error(
-				`Failed to fetch team members: ${error instanceof Error ? error.message : String(error)}`,
-			);
 		}
+
+		// Return members who are not in the active set
+		return members
+			.filter((member) => !activeUserEmails.has(member.email))
+			.map((member) => ({
+				email: member.email,
+				name: member.name,
+			}));
 	}
 
 	/**
-	 * Fetch usage data for both notification and removal periods
+	 * Categorize inactive users into notification and removal candidates
+	 * @param members Array of team members
+	 * @param notifyPeriodUsage Usage data for notification period
+	 * @param removePeriodUsage Usage data for removal period
+	 * @returns Categorized inactive users
 	 */
-	async fetchUsageData(dateRanges: DateRangeInfo): Promise<{
-		notifyUsageData: any[];
-		removeUsageData: any[];
-	}> {
-		try {
-			const [notifyUsageResponse, removeUsageResponse] = await Promise.all([
-				this.cursorApi.fetchDailyUsageData(
-					dateRanges.notifyDateRange.startDateEpochMs,
-					dateRanges.notifyDateRange.endDateEpochMs,
-				),
-				this.cursorApi.fetchDailyUsageData(
-					dateRanges.removeDateRange.startDateEpochMs,
-					dateRanges.removeDateRange.endDateEpochMs,
-				),
-			]);
+	categorizeInactiveUsers(
+		members: User[],
+		notifyPeriodUsage: DailyUsageData[],
+		removePeriodUsage: DailyUsageData[],
+	): CategorizedInactiveUsers {
+		// Find users inactive for notification period
+		const usersToNotify = this.findInactiveUsers(members, notifyPeriodUsage);
 
-			const notifyUsageData = notifyUsageResponse.data;
-			const removeUsageData = removeUsageResponse.data;
+		// Find users inactive for removal period
+		const usersToRemove = this.findInactiveUsers(members, removePeriodUsage);
 
-			console.log(
-				`Fetched ${notifyUsageData.length} usage entries for notification period and ${removeUsageData.length} entries for removal period.`,
-			);
-
-			return { notifyUsageData, removeUsageData };
-		} catch (error) {
-			console.error("Error fetching daily usage data:", error);
-			throw new Error(
-				`Failed to fetch daily usage data: ${error instanceof Error ? error.message : String(error)}`,
-			);
-		}
+		return {
+			usersToNotify,
+			usersToRemove,
+		};
 	}
 
 	/**
 	 * Process inactive users and categorize them for notifications and removal
 	 */
-	async processInactiveUsers(
-		notifyAfterDays: number,
-		removeAfterDays: number,
-	): Promise<CursorOperationsResult> {
+	async processInactiveUsers(): Promise<CursorOperationsResult> {
 		// Get date ranges
-		const dateRanges = this.getDateRanges(notifyAfterDays, removeAfterDays);
+		const notifyDateRange = getUsageDataDateRange(this.notifyAfterDays);
+		const removeDateRange = getUsageDataDateRange(this.removeAfterDays);
 
 		// Fetch team members
-		const members = await this.fetchTeamMembers();
+		const members = await this.cursorApi.fetchTeamMembers();
 		if (members.length === 0) {
 			return {
 				members: [],
@@ -124,19 +104,34 @@ export class CursorOperations {
 		}
 
 		// Fetch usage data
-		const { notifyUsageData, removeUsageData } =
-			await this.fetchUsageData(dateRanges);
+		const [notifyUsageData, removeUsageData] = await Promise.all([
+			this.cursorApi.fetchDailyUsageData(notifyDateRange.startDateEpochMs, notifyDateRange.endDateEpochMs),
+			this.cursorApi.fetchDailyUsageData(removeDateRange.startDateEpochMs, removeDateRange.endDateEpochMs),
+		]);
 
 		// Categorize inactive users
-		const { usersToNotify, usersToRemove } = categorizeInactiveUsers(
+		const { usersToNotify, usersToRemove } = this.categorizeInactiveUsers(
 			members,
-			notifyUsageData,
-			removeUsageData,
+			notifyUsageData.data,
+			removeUsageData.data,
 		);
 
-		console.log(
-			`Found ${usersToNotify.length} users to notify and ${usersToRemove.length} users for removal.`,
-		);
+		console.log(`Found ${usersToNotify.length} users to notify and ${usersToRemove.length} users for removal.`);
+
+		if (this.notificationsEnabled) {
+			for (const user of usersToNotify) {
+				await this.slackApi.sendInactivityWarningDM(user.email, this.notifyAfterDays, "Cursor");
+			}
+
+			if (usersToRemove.length > 0) {
+				await this.slackApi.sendRemovalCandidatesNotification(
+					this.notificationRecipient,
+					usersToRemove,
+					this.removeAfterDays,
+					"Cursor",
+				);
+			}
+		}
 
 		return {
 			members,

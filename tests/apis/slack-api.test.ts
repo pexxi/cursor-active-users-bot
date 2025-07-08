@@ -1,5 +1,6 @@
 import { App } from "@slack/bolt";
-import { type InactiveUser, SlackApi } from "../../src/apis/slack-api";
+import { SlackApi } from "../../src/apis/slack-api";
+import type { User } from "../../src/types/users";
 
 // Mock the Slack Bolt App
 jest.mock("@slack/bolt");
@@ -34,14 +35,14 @@ describe("SlackApi", () => {
 				}) as any,
 		);
 
-		slackApi = new SlackApi(mockBotToken, mockSigningSecret);
+		slackApi = new SlackApi(mockBotToken, mockSigningSecret, true);
 	});
 
 	describe("sendInactiveUsersNotification", () => {
 		const mockRecipientUserId = "U12345678";
 
 		it("should send notification for inactive users with Slack usernames", async () => {
-			const inactiveUsers: InactiveUser[] = [
+			const inactiveUsers: User[] = [
 				{ name: "John Doe", email: "john@example.com" },
 				{ name: "Jane Smith", email: "jane@example.com" },
 			];
@@ -68,14 +69,9 @@ describe("SlackApi", () => {
 				message: { text: "test message" },
 			});
 
-			await slackApi.sendInactiveUsersNotification(
-				mockRecipientUserId,
-				inactiveUsers,
-			);
+			await slackApi.sendInactiveUsersNotification(mockRecipientUserId, inactiveUsers, 60, "Test App");
 
-			const todayMinus2Months = new Date(
-				Date.now() - 2 * 30 * 24 * 60 * 60 * 1000,
-			);
+			const todayMinus60Days = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000);
 
 			expect(mockLookupByEmail).toHaveBeenCalledTimes(2);
 			expect(mockLookupByEmail).toHaveBeenNthCalledWith(1, {
@@ -87,14 +83,14 @@ describe("SlackApi", () => {
 
 			expect(mockPostMessage).toHaveBeenCalledWith({
 				channel: mockRecipientUserId,
-				text: `Inactive Cursor users (no activity since ${todayMinus2Months.toLocaleDateString("fi")}):
+				text: `Inactive Test App users (no activity since ${todayMinus60Days.toLocaleDateString("fi")}):
 - John Doe (john@example.com, <@U11111111>)
 - Jane Smith (jane@example.com, <@U22222222>)`,
 			});
 		});
 
 		it("should handle users not found in Slack", async () => {
-			const inactiveUsers: InactiveUser[] = [
+			const inactiveUsers: User[] = [
 				{ name: "John Doe", email: "john@example.com" },
 				{ name: "Jane Smith", email: "jane@example.com" },
 			];
@@ -117,18 +113,13 @@ describe("SlackApi", () => {
 
 			const consoleWarnSpy = jest.spyOn(console, "warn").mockImplementation();
 
-			await slackApi.sendInactiveUsersNotification(
-				mockRecipientUserId,
-				inactiveUsers,
-			);
+			await slackApi.sendInactiveUsersNotification(mockRecipientUserId, inactiveUsers, 60, "Test App");
 
-			const todayMinus2Months = new Date(
-				Date.now() - 2 * 30 * 24 * 60 * 60 * 1000,
-			);
+			const todayMinus60Days = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000);
 
 			expect(mockPostMessage).toHaveBeenCalledWith({
 				channel: mockRecipientUserId,
-				text: `Inactive Cursor users (no activity since ${todayMinus2Months.toLocaleDateString("fi")}):
+				text: `Inactive Test App users (no activity since ${todayMinus60Days.toLocaleDateString("fi")}):
 - John Doe (john@example.com, <@U11111111>)
 - Jane Smith (jane@example.com)`,
 			});
@@ -144,7 +135,7 @@ describe("SlackApi", () => {
 		it("should not send message when no inactive users", async () => {
 			const consoleSpy = jest.spyOn(console, "log").mockImplementation();
 
-			await slackApi.sendInactiveUsersNotification(mockRecipientUserId, []);
+			await slackApi.sendInactiveUsersNotification(mockRecipientUserId, [], 60, "Test App");
 
 			expect(mockPostMessage).not.toHaveBeenCalled();
 			expect(mockLookupByEmail).not.toHaveBeenCalled();
@@ -154,9 +145,7 @@ describe("SlackApi", () => {
 		});
 
 		it("should handle Slack API errors when sending message", async () => {
-			const inactiveUsers: InactiveUser[] = [
-				{ name: "John Doe", email: "john@example.com" },
-			];
+			const inactiveUsers: User[] = [{ name: "John Doe", email: "john@example.com" }];
 
 			mockLookupByEmail.mockResolvedValueOnce({
 				user: {
@@ -170,39 +159,22 @@ describe("SlackApi", () => {
 			mockPostMessage.mockRejectedValueOnce(mockError);
 
 			await expect(
-				slackApi.sendInactiveUsersNotification(
-					mockRecipientUserId,
-					inactiveUsers,
-				),
+				slackApi.sendInactiveUsersNotification(mockRecipientUserId, inactiveUsers, 60, "Test App"),
 			).rejects.toThrow("Slack API Error");
 		});
-	});
 
-	describe("sendMessage", () => {
-		const mockChannel = "C12345678";
-		const mockText = "Test message";
+		it("should not send notification when disabled", async () => {
+			const disabledSlackApi = new SlackApi(mockBotToken, mockSigningSecret, false);
+			const consoleSpy = jest.spyOn(console, "log").mockImplementation();
 
-		it("should send message successfully", async () => {
-			mockPostMessage.mockResolvedValueOnce({
-				ok: true,
-				message: { text: mockText },
-			});
+			const inactiveUsers: User[] = [{ name: "John Doe", email: "john@example.com" }];
 
-			await slackApi.sendMessage(mockChannel, mockText);
+			await disabledSlackApi.sendInactiveUsersNotification(mockRecipientUserId, inactiveUsers, 60, "Test App");
 
-			expect(mockPostMessage).toHaveBeenCalledWith({
-				channel: mockChannel,
-				text: mockText,
-			});
-		});
+			expect(mockPostMessage).not.toHaveBeenCalled();
+			expect(consoleSpy).toHaveBeenCalledWith("Slack notifications are disabled.");
 
-		it("should handle message sending errors", async () => {
-			const mockError = new Error("Message sending failed");
-			mockPostMessage.mockRejectedValueOnce(mockError);
-
-			await expect(slackApi.sendMessage(mockChannel, mockText)).rejects.toThrow(
-				"Message sending failed",
-			);
+			consoleSpy.mockRestore();
 		});
 	});
 
@@ -210,6 +182,7 @@ describe("SlackApi", () => {
 		it("should send DM successfully to user", async () => {
 			const userEmail = "john@example.com";
 			const inactiveDays = 60;
+			const appName = "Test App";
 
 			mockLookupByEmail.mockResolvedValueOnce({
 				user: {
@@ -224,31 +197,26 @@ describe("SlackApi", () => {
 				message: { text: "test message" },
 			});
 
-			const result = await slackApi.sendInactivityWarningDM(
-				userEmail,
-				inactiveDays,
-			);
+			const result = await slackApi.sendInactivityWarningDM(userEmail, inactiveDays, appName);
 
 			expect(result).toBe(true);
 			expect(mockLookupByEmail).toHaveBeenCalledWith({ email: userEmail });
 			expect(mockPostMessage).toHaveBeenCalledWith({
 				channel: "U11111111",
-				text: "You haven't used Cursor for 60 days. If you are planning to not use the app, please inform IT so we can remove the license.",
+				text: "You haven't used Test App for 60 days. If you are planning to not use the app, please inform IT so we can remove the license.",
 			});
 		});
 
 		it("should return false when user not found in Slack", async () => {
 			const userEmail = "notfound@example.com";
 			const inactiveDays = 60;
+			const appName = "Test App";
 
 			mockLookupByEmail.mockRejectedValueOnce(new Error("User not found"));
 
 			const consoleWarnSpy = jest.spyOn(console, "warn").mockImplementation();
 
-			const result = await slackApi.sendInactivityWarningDM(
-				userEmail,
-				inactiveDays,
-			);
+			const result = await slackApi.sendInactivityWarningDM(userEmail, inactiveDays, appName);
 
 			expect(result).toBe(false);
 			expect(consoleWarnSpy).toHaveBeenCalledWith(
@@ -262,6 +230,7 @@ describe("SlackApi", () => {
 		it("should return false when user has no Slack ID", async () => {
 			const userEmail = "noid@example.com";
 			const inactiveDays = 60;
+			const appName = "Test App";
 
 			mockLookupByEmail.mockResolvedValueOnce({
 				user: {
@@ -273,15 +242,10 @@ describe("SlackApi", () => {
 
 			const consoleWarnSpy = jest.spyOn(console, "warn").mockImplementation();
 
-			const result = await slackApi.sendInactivityWarningDM(
-				userEmail,
-				inactiveDays,
-			);
+			const result = await slackApi.sendInactivityWarningDM(userEmail, inactiveDays, appName);
 
 			expect(result).toBe(false);
-			expect(consoleWarnSpy).toHaveBeenCalledWith(
-				`Could not find Slack user ID for email: ${userEmail}`,
-			);
+			expect(consoleWarnSpy).toHaveBeenCalledWith(`Could not find Slack user ID for email: ${userEmail}`);
 
 			consoleWarnSpy.mockRestore();
 		});
@@ -289,6 +253,7 @@ describe("SlackApi", () => {
 		it("should return false when message sending fails", async () => {
 			const userEmail = "john@example.com";
 			const inactiveDays = 60;
+			const appName = "Test App";
 
 			mockLookupByEmail.mockResolvedValueOnce({
 				user: {
@@ -298,16 +263,23 @@ describe("SlackApi", () => {
 				},
 			});
 
-			mockPostMessage.mockRejectedValueOnce(
-				new Error("Message sending failed"),
-			);
+			mockPostMessage.mockRejectedValueOnce(new Error("Message sending failed"));
 
-			const result = await slackApi.sendInactivityWarningDM(
-				userEmail,
-				inactiveDays,
-			);
+			const result = await slackApi.sendInactivityWarningDM(userEmail, inactiveDays, appName);
 
 			expect(result).toBe(false);
+		});
+
+		it("should return false when disabled", async () => {
+			const disabledSlackApi = new SlackApi(mockBotToken, mockSigningSecret, false);
+			const consoleSpy = jest.spyOn(console, "log").mockImplementation();
+
+			const result = await disabledSlackApi.sendInactivityWarningDM("test@example.com", 60, "Test App");
+
+			expect(result).toBe(false);
+			expect(consoleSpy).toHaveBeenCalledWith("Slack notifications are disabled.");
+
+			consoleSpy.mockRestore();
 		});
 	});
 
@@ -315,11 +287,12 @@ describe("SlackApi", () => {
 		const mockRecipientUserId = "U12345678";
 
 		it("should send removal candidates notification", async () => {
-			const usersToRemove: InactiveUser[] = [
+			const usersToRemove: User[] = [
 				{ name: "John Doe", email: "john@example.com" },
 				{ name: "Jane Smith", email: "jane@example.com" },
 			];
 			const inactiveDays = 90;
+			const appName = "Test App";
 
 			mockLookupByEmail
 				.mockResolvedValueOnce({
@@ -342,26 +315,23 @@ describe("SlackApi", () => {
 				message: { text: "test message" },
 			});
 
-			await slackApi.sendRemovalCandidatesNotification(
-				mockRecipientUserId,
-				usersToRemove,
-				inactiveDays,
-			);
+			await slackApi.sendRemovalCandidatesNotification(mockRecipientUserId, usersToRemove, inactiveDays, appName);
 
 			expect(mockPostMessage).toHaveBeenCalledWith({
 				channel: mockRecipientUserId,
-				text: `Cursor license removal candidates (no activity for ${inactiveDays}+ days):
+				text: `Test App license removal candidates (no activity for ${inactiveDays}+ days):
 - John Doe (john@example.com, <@U11111111>)
 - Jane Smith (jane@example.com, <@U22222222>)`,
 			});
 		});
 
 		it("should handle users not found in Slack for removal notification", async () => {
-			const usersToRemove: InactiveUser[] = [
+			const usersToRemove: User[] = [
 				{ name: "John Doe", email: "john@example.com" },
 				{ name: "Jane Smith", email: "jane@example.com" },
 			];
 			const inactiveDays = 90;
+			const appName = "Test App";
 
 			mockLookupByEmail
 				.mockResolvedValueOnce({
@@ -380,15 +350,11 @@ describe("SlackApi", () => {
 
 			const consoleWarnSpy = jest.spyOn(console, "warn").mockImplementation();
 
-			await slackApi.sendRemovalCandidatesNotification(
-				mockRecipientUserId,
-				usersToRemove,
-				inactiveDays,
-			);
+			await slackApi.sendRemovalCandidatesNotification(mockRecipientUserId, usersToRemove, inactiveDays, appName);
 
 			expect(mockPostMessage).toHaveBeenCalledWith({
 				channel: mockRecipientUserId,
-				text: `Cursor license removal candidates (no activity for ${inactiveDays}+ days):
+				text: `Test App license removal candidates (no activity for ${inactiveDays}+ days):
 - John Doe (john@example.com, <@U11111111>)
 - Jane Smith (jane@example.com)`,
 			});
@@ -404,26 +370,19 @@ describe("SlackApi", () => {
 		it("should not send message when no users to remove", async () => {
 			const consoleSpy = jest.spyOn(console, "log").mockImplementation();
 
-			await slackApi.sendRemovalCandidatesNotification(
-				mockRecipientUserId,
-				[],
-				90,
-			);
+			await slackApi.sendRemovalCandidatesNotification(mockRecipientUserId, [], 90, "Test App");
 
 			expect(mockPostMessage).not.toHaveBeenCalled();
 			expect(mockLookupByEmail).not.toHaveBeenCalled();
-			expect(consoleSpy).toHaveBeenCalledWith(
-				"No users for removal to report.",
-			);
+			expect(consoleSpy).toHaveBeenCalledWith("No users for removal to report.");
 
 			consoleSpy.mockRestore();
 		});
 
 		it("should handle Slack API errors when sending removal notification", async () => {
-			const usersToRemove: InactiveUser[] = [
-				{ name: "John Doe", email: "john@example.com" },
-			];
+			const usersToRemove: User[] = [{ name: "John Doe", email: "john@example.com" }];
 			const inactiveDays = 90;
+			const appName = "Test App";
 
 			mockLookupByEmail.mockResolvedValueOnce({
 				user: {
@@ -437,31 +396,38 @@ describe("SlackApi", () => {
 			mockPostMessage.mockRejectedValueOnce(mockError);
 
 			await expect(
-				slackApi.sendRemovalCandidatesNotification(
-					mockRecipientUserId,
-					usersToRemove,
-					inactiveDays,
-				),
+				slackApi.sendRemovalCandidatesNotification(mockRecipientUserId, usersToRemove, inactiveDays, appName),
 			).rejects.toThrow("Slack API Error");
+		});
+
+		it("should not send notification when disabled", async () => {
+			const disabledSlackApi = new SlackApi(mockBotToken, mockSigningSecret, false);
+			const consoleSpy = jest.spyOn(console, "log").mockImplementation();
+
+			const usersToRemove: User[] = [{ name: "John Doe", email: "john@example.com" }];
+
+			await disabledSlackApi.sendRemovalCandidatesNotification(mockRecipientUserId, usersToRemove, 90, "Test App");
+
+			expect(mockPostMessage).not.toHaveBeenCalled();
+			expect(consoleSpy).toHaveBeenCalledWith("Slack notifications are disabled.");
+
+			consoleSpy.mockRestore();
 		});
 	});
 
 	describe("constructor", () => {
-		it("should initialize App with bot token and signing secret", () => {
-			new SlackApi(mockBotToken, mockSigningSecret);
+		it("should initialize App with bot token and signing secret when enabled", () => {
+			new SlackApi(mockBotToken, mockSigningSecret, true);
 			expect(MockedApp).toHaveBeenCalledWith({
 				token: mockBotToken,
 				signingSecret: mockSigningSecret,
 			});
 		});
 
-		it("should initialize App with custom signing secret", () => {
-			const customSigningSecret = "custom-secret";
-			new SlackApi(mockBotToken, customSigningSecret);
-			expect(MockedApp).toHaveBeenCalledWith({
-				token: mockBotToken,
-				signingSecret: customSigningSecret,
-			});
+		it("should not initialize App when disabled", () => {
+			jest.clearAllMocks();
+			new SlackApi(mockBotToken, mockSigningSecret, false);
+			expect(MockedApp).not.toHaveBeenCalled();
 		});
 	});
 });

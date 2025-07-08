@@ -1,124 +1,224 @@
-# GitHub Copilot Integration TODO
+# Code Cleanup and Refactoring TODO
 
 ## Overview
-Add support for notifying inactive users for GitHub Copilot (similar to current Cursor users implementation).
 
-## Implementation Plan
+This document outlines a comprehensive plan to eliminate code duplication, improve maintainability, and follow DRY principles throughout the codebase. The focus is on removing duplication between lambda and server endpoints while creating a more modular, testable architecture.
 
-### Phase 1: Core Infrastructure ✅
-- [x] **Examine current Cursor implementation structure**
-  - Analyzed cursor-admin-api.ts, cursor-operations.ts, and lambda/index.ts
-  - Understood the pattern: API client → Operations service → Lambda integration
+## Priority 1: Lambda and Server Endpoint Unification
 
-- [x] **Research GitHub Copilot API documentation**
-  - Reviewed GitHub Copilot User Management API endpoints
-  - Key endpoints: `/orgs/{org}/copilot/billing/seats` for listing users with activity data
-  - Authentication: Bearer token with `manage_billing:copilot` or `read:org` scopes
+### Current Problems
 
-### Phase 2: GitHub API Implementation ✅
-- [x] **Create GitHub API client** (`src/apis/github-api.ts`)
-  - Implement `GitHubApi` class similar to `CursorAdminApi`
-  - Add method to fetch organization Copilot seat assignments
-  - Include user activity data (`last_activity_at`, `last_activity_editor`)
-  - Handle pagination for large organizations
-  - Add proper error handling and logging
+- **Lambda handler** (`src/lambda/index.ts`) - 233 lines with complex orchestration
+- **Server functions** (`src/server/local-server.ts`) - `checkInactiveCursorUsers()` (75 lines) and `checkInactiveGitHubUsers()` (80 lines)
+- Massive code duplication for:
+  - Environment variable parsing
+  - Service initialization
+  - Processing orchestration
+  - Slack notification handling
+  - Error handling patterns
 
-- [x] **Implement GitHub Copilot operations service** (`src/services/github-operations.ts`)
-  - Create `GitHubOperations` class similar to `CursorOperations`
-  - Implement `processInactiveUsers()` method
-  - Reuse existing `inactive-users-analyzer` logic
-  - Handle date range calculations for activity analysis
+### Phase 1: Create User Processing Orchestrator
 
-### Phase 3: Integration ✅
-- [x] **Update main lambda to support GitHub Copilot**
-  - Modify `src/lambda/index.ts` to support both Cursor and GitHub
-  - Add environment variables for GitHub configuration
-  - Add conditional logic to process GitHub users when enabled
-  - Ensure both systems can run independently or together
+- [ ] **Create `src/services/user-processing-orchestrator.ts`**
+  - [ ] Define `UserProcessingOrchestrator` class
+  - [ ] Add `processAllServices()` method for lambda use case
+  - [ ] Add `processCursorUsers()` method for server endpoint
+  - [ ] Add `processGitHubUsers()` method for server endpoint
+  - [ ] Extract common processing pipeline logic
+  - [ ] Handle service initialization and dependency injection
+  - [ ] Manage user deduplication across services
+  - [ ] Target: ~150-200 lines total
 
-- [x] **Add configuration support**
-  - Add `GITHUB_TOKEN` to secrets management
-  - Add `GITHUB_ORG` environment variable
-  - Add `ENABLE_GITHUB_COPILOT` feature flag
-  - Update `.env.example` with new variables
+### Phase 2: Extract Configuration Management
 
-### Phase 4: Testing & Documentation ✅
-- [x] **Add comprehensive tests**
-  - Create `tests/apis/github-api.test.ts`
-  - Create `tests/services/github-operations.test.ts`
-  - Add integration tests for combined Cursor + GitHub functionality
-  - Mock GitHub API responses for testing
+- [ ] **Create `src/services/configuration.ts`**
+  - [ ] Define `ConfigurationService` class
+  - [ ] Extract environment variable parsing from lambda handler
+  - [ ] Add validation for required variables per service
+  - [ ] Create configuration interfaces for type safety
+  - [ ] Add `getServiceConfiguration()` methods
+  - [ ] Target: ~80-100 lines
 
-- [x] **Update documentation**
-  - Update `README.md` with GitHub Copilot setup instructions
-  - Document required GitHub token permissions
-  - Add configuration examples
-  - Update deployment instructions
+### Phase 3: Create Notification Service
 
-### Phase 5: Infrastructure Updates 🔄
-- [ ] **Update CDK stack**
-  - Add GitHub-related environment variables to Lambda
-  - Update IAM permissions if needed
-  - Update secrets manager configuration
+- [ ] **Create `src/services/notification-service.ts`**
+  - [ ] Define `NotificationService` class
+  - [ ] Extract Slack notification orchestration logic
+  - [ ] Add `sendUserNotifications()` method
+  - [ ] Add `sendAdminSummary()` method
+  - [ ] Handle notification success/failure tracking
+  - [ ] Support both enabled/disabled notification modes
+  - [ ] Target: ~100-120 lines
 
-## Technical Details
+### Phase 4: Refactor Lambda Handler
 
-### GitHub API Endpoints Used
-- `GET /orgs/{org}/copilot/billing/seats` - List all Copilot seat assignments
-- Returns user activity data including `last_activity_at` timestamp
+- [ ] **Refactor `src/lambda/index.ts`**
+  - [ ] Replace direct service calls with orchestrator
+  - [ ] Remove duplicated configuration parsing
+  - [ ] Remove duplicated notification logic
+  - [ ] Keep lambda-specific error handling
+  - [ ] Target: Reduce from 233 lines to ~50-60 lines
 
-### Authentication Requirements
-- GitHub Personal Access Token or GitHub App token
-- Required scopes: `manage_billing:copilot` or `read:org`
-- Organization owner permissions required
+### Phase 5: Refactor Server Endpoints
 
-### Data Structure Mapping
-```typescript
-// GitHub Copilot Seat Response
-interface GitHubCopilotSeat {
-  assignee: {
-    login: string;
-    email?: string; // May not be available
-  };
-  last_activity_at: string | null;
-  last_activity_editor: string;
-  created_at: string;
-  updated_at: string;
-  pending_cancellation_date: string | null;
-}
-```
+- [ ] **Refactor `src/server/local-server.ts`**
+  - [ ] Replace `checkInactiveCursorUsers()` with orchestrator call
+  - [ ] Replace `checkInactiveGitHubUsers()` with orchestrator call
+  - [ ] Create generic `processService()` helper function
+  - [ ] Maintain existing API contract
+  - [ ] Target: Reduce each function from 75-80 lines to ~20-30 lines
 
-### Integration Strategy
-- Follow same pattern as Cursor implementation
-- Reuse existing `inactive-users-analyzer` logic
-- Support running both Cursor and GitHub checks in same Lambda execution
-- Use feature flags to enable/disable each service independently
+## Priority 2: Service Provider Abstraction
 
-## Progress Tracking
-- ✅ Completed
-- 🔄 In Progress  
-- ⏳ Pending
-- ❌ Blocked
+### Current Problems
 
-## Implementation Status: ✅ COMPLETE
+- `CursorOperations` and `GitHubOperations` have nearly identical structure
+- Duplicate `DateRangeInfo` interface definitions
+- Similar processing patterns with different implementations
 
-The GitHub Copilot integration has been successfully implemented! The system now supports:
+### Tasks
 
-- ✅ GitHub API client with full Copilot seat management
-- ✅ GitHub operations service with activity analysis
-- ✅ Multi-service Lambda handler supporting both Cursor and GitHub
-- ✅ Comprehensive test coverage for all new functionality
-- ✅ Updated documentation and configuration examples
-- ✅ Flexible service configuration (enable/disable independently)
-- ✅ User deduplication across services
-- ✅ Proper error handling and logging
+- [ ] **Create `src/services/interfaces.ts`**
+  - [ ] Define `UserServiceProvider` interface
+  - [ ] Define common `ServiceResult` interface
+  - [ ] Define shared `DateRangeInfo` interface
+  - [ ] Define `ProcessingConfiguration` interface
 
-### Ready for Deployment
+- [ ] **Create `src/services/base-user-service.ts`**
+  - [ ] Define abstract `BaseUserService` class
+  - [ ] Implement common `getDateRanges()` method
+  - [ ] Implement common logging patterns
+  - [ ] Define abstract methods for service-specific logic
 
-The implementation is ready for deployment. The only remaining task is updating the CDK stack to include the new environment variables, which can be done as needed.
+- [ ] **Refactor `src/services/cursor-operations.ts`**
+  - [ ] Extend `BaseUserService`
+  - [ ] Remove duplicate `DateRangeInfo` interface
+  - [ ] Use shared date range calculation
+  - [ ] Target: Reduce from 147 lines to ~100-120 lines
 
-## Notes
-- GitHub API has rate limits - implement proper retry logic
-- Some users may not have email addresses exposed via API
-- Activity tracking depends on user having telemetry enabled in IDE
-- Consider implementing caching for large organizations
+- [ ] **Refactor `src/services/github-operations.ts`**
+  - [ ] Extend `BaseUserService`
+  - [ ] Remove duplicate `DateRangeInfo` interface
+  - [ ] Consolidate inactive user finding logic
+  - [ ] Target: Reduce from 174 lines to ~120-140 lines
+
+## Priority 3: Function Decomposition
+
+### Lambda Handler Functions
+
+- [ ] **Split `handler()` in `src/lambda/index.ts`**
+  - [ ] Extract `parseConfiguration()` helper
+  - [ ] Extract `initializeServices()` helper
+  - [ ] Extract `processServices()` helper
+  - [ ] Extract `handleNotifications()` helper
+  - [ ] Each helper function should be 20-40 lines
+
+### Server Functions
+
+- [ ] **Split `checkInactiveCursorUsers()` in `src/server/local-server.ts`**
+  - [ ] Extract `initializeCursorService()` helper
+  - [ ] Extract `processNotifications()` helper
+  - [ ] Extract `buildResponse()` helper
+
+- [ ] **Split `checkInactiveGitHubUsers()` in `src/server/local-server.ts`**
+  - [ ] Extract `initializeGitHubService()` helper
+  - [ ] Extract `processNotifications()` helper (shared with Cursor)
+  - [ ] Extract `buildResponse()` helper (shared with Cursor)
+
+## Priority 4: Interface and Type Consolidation
+
+### Current Problems
+
+- `DateRangeInfo` interface duplicated across services
+- Similar result interfaces with slight variations
+- Inconsistent type definitions
+
+### Tasks
+
+- [ ] **Create `src/types/common.ts`**
+  - [ ] Move `DateRangeInfo` interface
+  - [ ] Define `ServiceProcessingResult` interface
+  - [ ] Define `NotificationResult` interface
+  - [ ] Define `ConfigurationOptions` interface
+
+- [ ] **Update service imports**
+  - [ ] Replace local interface definitions with shared types
+  - [ ] Ensure consistent naming conventions
+  - [ ] Add proper JSDoc documentation
+
+## Priority 5: Minor Cleanups and Improvements
+
+### API Cleanups
+
+- [ ] **Remove deprecated code in `src/apis/slack-api.ts`**
+  - [ ] Remove `sendInactiveUsersNotification()` method (marked deprecated)
+  - [ ] Clean up unused imports
+  - [ ] Verify all methods are properly used
+
+### Error Handling
+
+- [ ] **Standardize error handling patterns**
+  - [ ] Create common error handling utilities
+  - [ ] Ensure consistent error logging format
+  - [ ] Add proper error recovery mechanisms
+
+### Logging Improvements
+
+- [ ] **Improve logging consistency**
+  - [ ] Standardize log message formats
+  - [ ] Add structured logging for better debugging
+  - [ ] Ensure sensitive data is not logged
+
+### Code Style
+
+- [ ] **Apply consistent coding patterns**
+  - [ ] Ensure all functions have proper JSDoc comments
+  - [ ] Verify imports are organized consistently
+  - [ ] Check adherence to established patterns
+
+## Testing Updates Required
+
+After implementing the changes above, the following test files will need updates:
+
+- [ ] Update `tests/services/cursor-operations.test.ts` for new base class
+- [ ] Update `tests/services/github-operations.test.ts` for new base class
+- [ ] Create `tests/services/user-processing-orchestrator.test.ts`
+- [ ] Create `tests/services/configuration.test.ts`
+- [ ] Create `tests/services/notification-service.test.ts`
+- [ ] Update integration tests for lambda and server endpoints
+
+## Expected Outcomes
+
+### Quantitative Improvements
+
+- **Lambda handler**: 233 lines → ~50-60 lines (75% reduction)
+- **Server functions**: 75-80 lines each → ~20-30 lines each (65% reduction)
+- **Overall code duplication**: ~60% reduction in duplicated logic
+- **File count**: +5 new service files, better separation of concerns
+
+### Qualitative Improvements
+
+- **Single source of truth** for business logic
+- **Improved testability** with isolated, focused functions
+- **Enhanced maintainability** through clear abstractions
+- **Better readability** with shorter, more focused files
+- **Easier extension** for adding new user services
+
+## Implementation Notes
+
+1. **Maintain API compatibility** - All existing endpoints must continue to work
+2. **Preserve error handling** - Don't break existing error recovery mechanisms
+3. **Keep tests passing** - Update tests incrementally as changes are made
+4. **Follow existing patterns** - Maintain consistency with established code style
+5. **Document changes** - Update relevant documentation and comments
+
+## Verification Checklist
+
+After implementation, verify:
+
+- [ ] All tests pass
+- [ ] Lambda function deploys successfully
+- [ ] Local server starts and responds correctly
+- [ ] No regression in functionality
+- [ ] Code passes linting with `npm run lint:fix`
+- [ ] Code formatting is consistent with `npm run format`

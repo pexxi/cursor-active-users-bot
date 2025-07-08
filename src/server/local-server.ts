@@ -1,12 +1,13 @@
 import * as dotenv from "dotenv";
 import express, {
+	type NextFunction,
 	type Request,
 	type Response,
-	type NextFunction,
 } from "express";
 import { CursorOperations } from "../services/cursor-operations";
 import { GitHubOperations } from "../services/github-operations";
-import { SlackApi } from "../apis/slack-api";
+import { getEnv } from "../utils/env";
+import { loadLocalSecrets } from "../utils/secrets";
 
 dotenv.config();
 
@@ -15,82 +16,23 @@ const PORT = process.env.PORT || 3000;
 
 app.use(express.json());
 
-interface LocalSecretsData {
-	CURSOR_API_KEY?: string;
-	GITHUB_TOKEN?: string;
-	GITHUB_ORG?: string;
-	SLACK_BOT_TOKEN: string;
-	SLACK_USER_ID: string;
-	SLACK_SIGNING_SECRET: string;
-}
-
-/**
- * Load secrets from environment variables for local development
- */
-function loadLocalSecrets(): LocalSecretsData {
-	const {
-		CURSOR_API_KEY,
-		GITHUB_TOKEN,
-		GITHUB_ORG,
-		SLACK_BOT_TOKEN,
-		SLACK_USER_ID,
-		SLACK_SIGNING_SECRET,
-	} = process.env;
-
-	if (!SLACK_BOT_TOKEN || !SLACK_USER_ID || !SLACK_SIGNING_SECRET) {
-		throw new Error(
-			"Missing required Slack environment variables: SLACK_BOT_TOKEN, SLACK_USER_ID, SLACK_SIGNING_SECRET",
-		);
-	}
-
-	return {
-		CURSOR_API_KEY,
-		GITHUB_TOKEN,
-		GITHUB_ORG,
-		SLACK_BOT_TOKEN,
-		SLACK_USER_ID,
-		SLACK_SIGNING_SECRET,
-	};
-}
-
 /**
  * Main function to check for inactive Cursor users
  */
-async function checkInactiveCursorUsers(notifyAfterDays = 60, removeAfterDays = 90) {
+async function checkInactiveCursorUsers() {
 	console.log("Starting inactive Cursor users check...");
 
 	try {
+		const env = getEnv();
 		const secrets = loadLocalSecrets();
+
 		if (!secrets.CURSOR_API_KEY) {
 			throw new Error("CURSOR_API_KEY environment variable is not set.");
 		}
-
-		const cursorOperations = new CursorOperations(secrets.CURSOR_API_KEY);
-		const slackApi = new SlackApi(
-			secrets.SLACK_BOT_TOKEN,
-			secrets.SLACK_SIGNING_SECRET,
-		);
+		const cursorOperations = new CursorOperations(secrets, env);
 
 		const { usersToNotify, usersToRemove } =
-			await cursorOperations.processInactiveUsers(
-				notifyAfterDays,
-				removeAfterDays,
-			);
-
-		if (usersToNotify.length > 0) {
-			await slackApi.sendInactivityWarningDM(
-				usersToNotify.map(u => u.email).join(','),
-				notifyAfterDays,
-			);
-		}
-
-		if (usersToRemove.length > 0) {
-			await slackApi.sendRemovalCandidatesNotification(
-				secrets.SLACK_USER_ID,
-				usersToRemove,
-				removeAfterDays,
-			);
-		}
+			await cursorOperations.processInactiveUsers();
 
 		return {
 			success: true,
@@ -107,46 +49,16 @@ async function checkInactiveCursorUsers(notifyAfterDays = 60, removeAfterDays = 
 /**
  * Main function to check for inactive GitHub Copilot users
  */
-async function checkInactiveGitHubUsers(notifyAfterDays = 60, removeAfterDays = 90) {
+async function checkInactiveGitHubUsers() {
 	console.log("Starting inactive GitHub Copilot users check...");
 
 	try {
+		const env = getEnv();
 		const secrets = loadLocalSecrets();
-		if (!secrets.GITHUB_TOKEN || !secrets.GITHUB_ORG) {
-			throw new Error(
-				"GITHUB_TOKEN and GITHUB_ORG environment variables are not set.",
-			);
-		}
-
-		const githubOperations = new GitHubOperations(
-			secrets.GITHUB_TOKEN,
-			secrets.GITHUB_ORG,
-		);
-		const slackApi = new SlackApi(
-			secrets.SLACK_BOT_TOKEN,
-			secrets.SLACK_SIGNING_SECRET,
-		);
+		const githubOperations = new GitHubOperations(secrets, env);
 
 		const { usersToNotify, usersToRemove } =
-			await githubOperations.processInactiveUsers(
-				notifyAfterDays,
-				removeAfterDays,
-			);
-
-		if (usersToNotify.length > 0) {
-			await slackApi.sendInactivityWarningDM(
-				usersToNotify.map(u => u.email).join(','),
-				notifyAfterDays,
-			);
-		}
-
-		if (usersToRemove.length > 0) {
-			await slackApi.sendRemovalCandidatesNotification(
-				secrets.SLACK_USER_ID,
-				usersToRemove,
-				removeAfterDays,
-			);
-		}
+			await githubOperations.processInactiveUsers();
 
 		return {
 			success: true,
@@ -177,13 +89,9 @@ app.get("/health", (_req: Request, res: Response) => {
 	res.json({ status: "healthy", timestamp: new Date().toISOString() });
 });
 
-app.post("/check-cursor", async (req: Request, res: Response) => {
+app.post("/check-cursor", async (_req: Request, res: Response) => {
 	try {
-		const { notifyAfterDays, removeAfterDays } = req.body;
-		const result = await checkInactiveCursorUsers(
-			notifyAfterDays,
-			removeAfterDays,
-		);
+		const result = await checkInactiveCursorUsers();
 		res.json(result);
 	} catch (error) {
 		console.error("Error in /check-cursor endpoint:", error);
@@ -194,13 +102,9 @@ app.post("/check-cursor", async (req: Request, res: Response) => {
 	}
 });
 
-app.post("/check-github", async (req: Request, res: Response) => {
+app.post("/check-github", async (_req: Request, res: Response) => {
 	try {
-		const { notifyAfterDays, removeAfterDays } = req.body;
-		const result = await checkInactiveGitHubUsers(
-			notifyAfterDays,
-			removeAfterDays,
-		);
+		const result = await checkInactiveGitHubUsers();
 		res.json(result);
 	} catch (error) {
 		console.error("Error in /check-github endpoint:", error);

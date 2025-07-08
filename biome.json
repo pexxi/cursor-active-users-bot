@@ -18,18 +18,6 @@
 			"recommended": true,
 			"suspicious": {
 				"noExplicitAny": "off"
-			},
-			"style": {
-				"noParameterAssign": "error",
-				"useAsConstAssertion": "error",
-				"useDefaultParameterLast": "error",
-				"useEnumInitializers": "error",
-				"useSelfClosingElements": "error",
-				"useSingleVarDeclarator": "error",
-				"noUnusedTemplateLiteral": "error",
-				"useNumberNamespace": "error",
-				"noInferrableTypes": "error",
-				"noUselessElse": "error"
 			}
 		}
 	},
@@ -51,7 +39,7 @@
 		"indentStyle": "tab",
 		"indentWidth": 2,
 		"lineEnding": "lf",
-		"lineWidth": 80
+		"lineWidth": 120
 	},
 	"assist": { "actions": { "source": { "organizeImports": "on" } } },
 	"javascript": {

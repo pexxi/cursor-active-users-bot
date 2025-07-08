@@ -1,15 +1,40 @@
-import { GitHubOperations } from "../../src/services/github-operations";
 import { GitHubApi, type GitHubCopilotSeat } from "../../src/apis/github-api";
+import { SlackApi } from "../../src/apis/slack-api";
+import { GitHubOperations } from "../../src/services/github-operations";
+import type { EnvData } from "../../src/utils/env";
+import type { SecretsData } from "../../src/utils/secrets";
 
-// Mock the GitHubApi
+// Mock the dependencies
 jest.mock("../../src/apis/github-api");
+jest.mock("../../src/apis/slack-api");
+
 const MockedGitHubApi = GitHubApi as jest.MockedClass<typeof GitHubApi>;
+const MockedSlackApi = SlackApi as jest.MockedClass<typeof SlackApi>;
 
 describe("GitHubOperations", () => {
 	let githubOperations: GitHubOperations;
 	let mockGitHubApi: jest.Mocked<GitHubApi>;
-	const mockToken = "test-token";
-	const mockOrg = "test-org";
+	let mockSlackApi: jest.Mocked<SlackApi>;
+
+	const mockSecrets: SecretsData = {
+		CURSOR_API_KEY: "test-cursor-api-key",
+		GITHUB_TOKEN: "test-github-token",
+		GITHUB_ORG: "test-org",
+		SLACK_BOT_TOKEN: "test-slack-bot-token",
+		SLACK_USER_ID: "test-slack-user-id",
+		SLACK_SIGNING_SECRET: "test-slack-signing-secret",
+		NOTIFY_AFTER_DAYS: 60,
+		REMOVE_AFTER_DAYS: 90,
+		ENABLE_NOTIFICATIONS: true,
+	};
+
+	const mockEnv: EnvData = {
+		NOTIFY_AFTER_DAYS: 60,
+		REMOVE_AFTER_DAYS: 90,
+		ENABLE_NOTIFICATIONS: true,
+		ENABLE_CURSOR: true,
+		ENABLE_GITHUB_COPILOT: true,
+	};
 
 	beforeEach(() => {
 		jest.clearAllMocks();
@@ -18,123 +43,25 @@ describe("GitHubOperations", () => {
 			fetchCopilotSeats: jest.fn(),
 			fetchUserCopilotSeat: jest.fn(),
 		} as unknown as jest.Mocked<GitHubApi>;
+		mockSlackApi = {
+			sendInactivityWarningDM: jest.fn(),
+			sendRemovalCandidatesNotification: jest.fn(),
+			sendInactiveUsersNotification: jest.fn(),
+		} as unknown as jest.Mocked<SlackApi>;
+
 		MockedGitHubApi.mockImplementation(() => mockGitHubApi);
-		githubOperations = new GitHubOperations(mockToken, mockOrg);
+		MockedSlackApi.mockImplementation(() => mockSlackApi);
+		githubOperations = new GitHubOperations(mockSecrets, mockEnv);
 	});
 
-	describe("getDateRanges", () => {
-		it("should calculate correct date ranges", () => {
-			const notifyAfterDays = 60;
-			const removeAfterDays = 90;
-
-			const consoleSpy = jest.spyOn(console, "log").mockImplementation();
-
-			const result = githubOperations.getDateRanges(
-				notifyAfterDays,
-				removeAfterDays,
+	describe("constructor", () => {
+		it("should initialize with secrets and env", () => {
+			expect(MockedGitHubApi).toHaveBeenCalledWith(mockSecrets.GITHUB_TOKEN, mockSecrets.GITHUB_ORG);
+			expect(MockedSlackApi).toHaveBeenCalledWith(
+				mockSecrets.SLACK_BOT_TOKEN,
+				mockSecrets.SLACK_SIGNING_SECRET,
+				mockEnv.ENABLE_NOTIFICATIONS,
 			);
-
-			expect(result).toHaveProperty("notifyDateRange");
-			expect(result).toHaveProperty("removeDateRange");
-			expect(result.notifyDateRange).toHaveProperty("startDateEpochMs");
-			expect(result.notifyDateRange).toHaveProperty("endDateEpochMs");
-			expect(result.removeDateRange).toHaveProperty("startDateEpochMs");
-			expect(result.removeDateRange).toHaveProperty("endDateEpochMs");
-
-			// Verify that notify period is more recent than remove period
-			expect(result.notifyDateRange.startDateEpochMs).toBeGreaterThan(
-				result.removeDateRange.startDateEpochMs,
-			);
-
-			expect(consoleSpy).toHaveBeenCalledWith(
-				expect.stringContaining("GitHub Copilot: Checking activity for notification period"),
-			);
-			expect(consoleSpy).toHaveBeenCalledWith(
-				expect.stringContaining("GitHub Copilot: Checking activity for removal period"),
-			);
-
-			consoleSpy.mockRestore();
-		});
-	});
-
-	describe("fetchCopilotSeats", () => {
-		it("should fetch Copilot seats successfully", async () => {
-			const mockSeats: GitHubCopilotSeat[] = [
-				{
-					created_at: "2021-08-03T18:00:00-06:00",
-					updated_at: "2021-09-23T15:00:00-06:00",
-					pending_cancellation_date: null,
-					last_activity_at: "2021-10-14T00:53:32-06:00",
-					last_activity_editor: "vscode/1.77.3/copilot/1.86.82",
-					plan_type: "business",
-					assignee: {
-						login: "testuser",
-						id: 1,
-						node_id: "MDQ6VXNlcjE=",
-						avatar_url: "https://github.com/images/error/testuser.gif",
-						gravatar_id: "",
-						url: "https://api.github.com/users/testuser",
-						html_url: "https://github.com/testuser",
-						followers_url: "https://api.github.com/users/testuser/followers",
-						following_url: "https://api.github.com/users/testuser/following{/other_user}",
-						gists_url: "https://api.github.com/users/testuser/gists{/gist_id}",
-						starred_url: "https://api.github.com/users/testuser/starred{/owner}{/repo}",
-						subscriptions_url: "https://api.github.com/users/testuser/subscriptions",
-						organizations_url: "https://api.github.com/users/testuser/orgs",
-						repos_url: "https://api.github.com/users/testuser/repos",
-						events_url: "https://api.github.com/users/testuser/events{/privacy}",
-						received_events_url: "https://api.github.com/users/testuser/received_events",
-						type: "User",
-						site_admin: false,
-						email: "testuser@example.com",
-					},
-				},
-			];
-
-			mockGitHubApi.fetchAllCopilotSeats.mockResolvedValueOnce(mockSeats);
-
-			const consoleSpy = jest.spyOn(console, "log").mockImplementation();
-
-			const result = await githubOperations.fetchCopilotSeats();
-
-			expect(result).toEqual(mockSeats);
-			expect(mockGitHubApi.fetchAllCopilotSeats).toHaveBeenCalledTimes(1);
-			expect(consoleSpy).toHaveBeenCalledWith("Fetched 1 GitHub Copilot seats.");
-
-			consoleSpy.mockRestore();
-		});
-
-		it("should handle empty seats response", async () => {
-			mockGitHubApi.fetchAllCopilotSeats.mockResolvedValueOnce([]);
-
-			const consoleSpy = jest.spyOn(console, "log").mockImplementation();
-
-			const result = await githubOperations.fetchCopilotSeats();
-
-			expect(result).toEqual([]);
-			expect(consoleSpy).toHaveBeenCalledWith(
-				"No Copilot seats found in the GitHub organization.",
-			);
-
-			consoleSpy.mockRestore();
-		});
-
-		it("should handle API errors", async () => {
-			const mockError = new Error("API Error");
-			mockGitHubApi.fetchAllCopilotSeats.mockRejectedValueOnce(mockError);
-
-			const consoleErrorSpy = jest.spyOn(console, "error").mockImplementation();
-
-			await expect(githubOperations.fetchCopilotSeats()).rejects.toThrow(
-				"Failed to fetch GitHub Copilot seats: API Error",
-			);
-
-			expect(consoleErrorSpy).toHaveBeenCalledWith(
-				"Error fetching GitHub Copilot seats:",
-				mockError,
-			);
-
-			consoleErrorSpy.mockRestore();
 		});
 	});
 
@@ -252,7 +179,7 @@ describe("GitHubOperations", () => {
 			const result = githubOperations.findInactiveUsers(mockSeats, cutoffDate);
 
 			// Check that user without email gets fallback email
-			const userWithoutEmail = result.find(user => user.name === "neveractiveuser");
+			const userWithoutEmail = result.find((user) => user.name === "neveractiveuser");
 			expect(userWithoutEmail?.email).toBe("neveractiveuser@github.local");
 		});
 	});
@@ -362,7 +289,11 @@ describe("GitHubOperations", () => {
 
 			const consoleSpy = jest.spyOn(console, "log").mockImplementation();
 
-			const result = githubOperations.categorizeInactiveUsers(mockSeats, dateRanges);
+			const result = githubOperations.categorizeInactiveUsers(
+				mockSeats,
+				dateRanges.notifyDateRange,
+				dateRanges.removeDateRange,
+			);
 
 			expect(result.usersToNotify).toHaveLength(1);
 			expect(result.usersToNotify[0]).toEqual({
@@ -376,9 +307,7 @@ describe("GitHubOperations", () => {
 				name: "removeuser",
 			});
 
-			expect(consoleSpy).toHaveBeenCalledWith(
-				"GitHub Copilot: Found 1 users to notify and 1 users for removal.",
-			);
+			expect(consoleSpy).toHaveBeenCalledWith("GitHub Copilot: Found 1 users to notify and 1 users for removal.");
 
 			consoleSpy.mockRestore();
 		});
@@ -429,7 +358,11 @@ describe("GitHubOperations", () => {
 
 			const consoleSpy = jest.spyOn(console, "log").mockImplementation();
 
-			const result = githubOperations.categorizeInactiveUsers(mockSeats, dateRanges);
+			const result = githubOperations.categorizeInactiveUsers(
+				mockSeats,
+				dateRanges.notifyDateRange,
+				dateRanges.removeDateRange,
+			);
 
 			// User should be in remove list but NOT in notify list
 			expect(result.usersToNotify).toHaveLength(0);
@@ -481,7 +414,7 @@ describe("GitHubOperations", () => {
 
 			const consoleSpy = jest.spyOn(console, "log").mockImplementation();
 
-			const result = await githubOperations.processInactiveUsers(60, 90);
+			const result = await githubOperations.processInactiveUsers();
 
 			expect(result.seats).toEqual(mockSeats);
 			expect(result.usersToNotify).toBeDefined();
@@ -496,7 +429,7 @@ describe("GitHubOperations", () => {
 
 			const consoleSpy = jest.spyOn(console, "log").mockImplementation();
 
-			const result = await githubOperations.processInactiveUsers(60, 90);
+			const result = await githubOperations.processInactiveUsers();
 
 			expect(result.seats).toEqual([]);
 			expect(result.usersToNotify).toEqual([]);

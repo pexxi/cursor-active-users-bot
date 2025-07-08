@@ -55,21 +55,16 @@ export class CursorAdminApi {
 	 */
 	async fetchTeamMembers(): Promise<CursorUser[]> {
 		try {
-			const response = await axios.get<CursorTeamMembersResponse>(
-				`${CURSOR_API_BASE_URL}/teams/members`,
-				{
-					auth: {
-						username: this.apiKey,
-						password: "", // Password is empty as per Cursor API docs
-					},
-					headers: {
-						"Content-Type": "application/json",
-					},
+			const response = await axios.get<CursorTeamMembersResponse>(`${CURSOR_API_BASE_URL}/teams/members`, {
+				auth: {
+					username: this.apiKey,
+					password: "", // Password is empty as per Cursor API docs
 				},
-			);
-			return response.data.teamMembers.filter(
-				(member) => member.role === "member",
-			);
+				headers: {
+					"Content-Type": "application/json",
+				},
+			});
+			return response.data.teamMembers.filter((member) => member.role === "member");
 		} catch (error) {
 			console.error("Error fetching team members:", error);
 			if (axios.isAxiosError(error)) {
@@ -84,10 +79,7 @@ export class CursorAdminApi {
 	 * @param startDateEpochMs Start date in epoch milliseconds
 	 * @param endDateEpochMs End date in epoch milliseconds
 	 */
-	async fetchDailyUsageData(
-		startDateEpochMs: number,
-		endDateEpochMs: number,
-	): Promise<CursorDailyUsageResponse> {
+	async fetchDailyUsageData(startDateEpochMs: number, endDateEpochMs: number): Promise<CursorDailyUsageResponse> {
 		try {
 			const response = await axios.post<CursorDailyUsageResponse>(
 				`${CURSOR_API_BASE_URL}/teams/daily-usage-data`,

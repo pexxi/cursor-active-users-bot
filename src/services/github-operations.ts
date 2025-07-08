@@ -1,19 +1,15 @@
 import { GitHubApi, type GitHubCopilotSeat } from "../apis/github-api";
-import {
-	getUsageDataDateRange,
-	type CategorizedInactiveUsers,
-} from "./inactive-users-analyzer";
-import type { InactiveUser } from "../apis/slack-api";
+import { SlackApi } from "../apis/slack-api";
+import type { User } from "../types/users";
+import { type DateRangeInfo, getUsageDataDateRange } from "../utils/dates";
+import type { EnvData } from "../utils/env";
+import type { SecretsData } from "../utils/secrets";
+import type { CategorizedInactiveUsers } from "./cursor-operations";
 
 export interface GitHubOperationsResult {
 	seats: GitHubCopilotSeat[];
-	usersToNotify: InactiveUser[];
-	usersToRemove: InactiveUser[];
-}
-
-export interface DateRangeInfo {
-	notifyDateRange: { startDateEpochMs: number; endDateEpochMs: number };
-	removeDateRange: { startDateEpochMs: number; endDateEpochMs: number };
+	usersToNotify: User[];
+	usersToRemove: User[];
 }
 
 /**
@@ -21,51 +17,20 @@ export interface DateRangeInfo {
  */
 export class GitHubOperations {
 	private githubApi: GitHubApi;
+	private slackApi: SlackApi;
+	private notifyAfterDays: number; // Default notification period in days
+	private removeAfterDays: number; // Default removal period in days
+	notificationRecipient: string;
+	notificationsEnabled: boolean;
 
-	constructor(token: string, organization: string) {
-		this.githubApi = new GitHubApi(token, organization);
-	}
-
-	/**
-	 * Get date ranges for notification and removal periods
-	 */
-	getDateRanges(
-		notifyAfterDays: number,
-		removeAfterDays: number,
-	): DateRangeInfo {
-		const notifyDateRange = getUsageDataDateRange(notifyAfterDays);
-		const removeDateRange = getUsageDataDateRange(removeAfterDays);
-
-		console.log(
-			`GitHub Copilot: Checking activity for notification period: last ${notifyAfterDays} days (${new Date(notifyDateRange.startDateEpochMs).toISOString()} to ${new Date(notifyDateRange.endDateEpochMs).toISOString()})`,
-		);
-		console.log(
-			`GitHub Copilot: Checking activity for removal period: last ${removeAfterDays} days (${new Date(removeDateRange.startDateEpochMs).toISOString()} to ${new Date(removeDateRange.endDateEpochMs).toISOString()})`,
-		);
-
-		return { notifyDateRange, removeDateRange };
-	}
-
-	/**
-	 * Fetch all Copilot seats from GitHub API
-	 */
-	async fetchCopilotSeats(): Promise<GitHubCopilotSeat[]> {
-		try {
-			const seats = await this.githubApi.fetchAllCopilotSeats();
-			console.log(`Fetched ${seats.length} GitHub Copilot seats.`);
-
-			if (!seats || seats.length === 0) {
-				console.log("No Copilot seats found in the GitHub organization.");
-				return [];
-			}
-
-			return seats;
-		} catch (error) {
-			console.error("Error fetching GitHub Copilot seats:", error);
-			throw new Error(
-				`Failed to fetch GitHub Copilot seats: ${error instanceof Error ? error.message : String(error)}`,
-			);
-		}
+	constructor(secrets: SecretsData, env: EnvData) {
+		this.githubApi = new GitHubApi(secrets.GITHUB_TOKEN, secrets.GITHUB_ORG);
+		this.slackApi = new SlackApi(secrets.SLACK_BOT_TOKEN, secrets.SLACK_SIGNING_SECRET, env.ENABLE_NOTIFICATIONS);
+		// Use environment variables for notification and removal periods
+		this.notifyAfterDays = env.NOTIFY_AFTER_DAYS || 30; // Default to 30 days if not set
+		this.removeAfterDays = env.REMOVE_AFTER_DAYS || 90; // Default to 90 days if not set
+		this.notificationRecipient = secrets.SLACK_USER_ID || ""; // Default to empty string if not set
+		this.notificationsEnabled = env.ENABLE_NOTIFICATIONS || false; // Default to false if not set
 	}
 
 	/**
@@ -74,10 +39,7 @@ export class GitHubOperations {
 	 * @param cutoffDateEpochMs Cutoff date in epoch milliseconds
 	 * @returns Array of inactive users
 	 */
-	findInactiveUsers(
-		seats: GitHubCopilotSeat[],
-		cutoffDateEpochMs: number,
-	): InactiveUser[] {
+	findInactiveUsers(seats: GitHubCopilotSeat[], cutoffDateEpochMs: number): User[] {
 		const cutoffDate = new Date(cutoffDateEpochMs);
 
 		return seats
@@ -105,25 +67,18 @@ export class GitHubOperations {
 	 */
 	categorizeInactiveUsers(
 		seats: GitHubCopilotSeat[],
-		dateRanges: DateRangeInfo,
+		notifyDateRange: DateRangeInfo,
+		removeDateRange: DateRangeInfo,
 	): CategorizedInactiveUsers {
 		// Find users inactive for notification period
-		const usersToNotify = this.findInactiveUsers(
-			seats,
-			dateRanges.notifyDateRange.startDateEpochMs,
-		);
+		const usersToNotify = this.findInactiveUsers(seats, notifyDateRange.startDateEpochMs);
 
 		// Find users inactive for removal period
-		const usersToRemove = this.findInactiveUsers(
-			seats,
-			dateRanges.removeDateRange.startDateEpochMs,
-		);
+		const usersToRemove = this.findInactiveUsers(seats, removeDateRange.startDateEpochMs);
 
 		// Remove users from notification list if they're already in removal list
 		const removeEmails = new Set(usersToRemove.map((user) => user.email));
-		const filteredUsersToNotify = usersToNotify.filter(
-			(user) => !removeEmails.has(user.email),
-		);
+		const filteredUsersToNotify = usersToNotify.filter((user) => !removeEmails.has(user.email));
 
 		console.log(
 			`GitHub Copilot: Found ${filteredUsersToNotify.length} users to notify and ${usersToRemove.length} users for removal.`,
@@ -138,15 +93,13 @@ export class GitHubOperations {
 	/**
 	 * Process inactive users and categorize them for notifications and removal
 	 */
-	async processInactiveUsers(
-		notifyAfterDays: number,
-		removeAfterDays: number,
-	): Promise<GitHubOperationsResult> {
+	async processInactiveUsers(): Promise<GitHubOperationsResult> {
 		// Get date ranges
-		const dateRanges = this.getDateRanges(notifyAfterDays, removeAfterDays);
+		const notifyDateRange = getUsageDataDateRange(this.notifyAfterDays);
+		const removeDateRange = getUsageDataDateRange(this.removeAfterDays);
 
 		// Fetch Copilot seats
-		const seats = await this.fetchCopilotSeats();
+		const seats = await this.githubApi.fetchAllCopilotSeats();
 		if (seats.length === 0) {
 			return {
 				seats: [],
@@ -156,14 +109,26 @@ export class GitHubOperations {
 		}
 
 		// Categorize inactive users
-		const { usersToNotify, usersToRemove } = this.categorizeInactiveUsers(
-			seats,
-			dateRanges,
-		);
+		const { usersToNotify, usersToRemove } = this.categorizeInactiveUsers(seats, notifyDateRange, removeDateRange);
 
 		console.log(
 			`GitHub Copilot: Found ${usersToNotify.length} users to notify and ${usersToRemove.length} users for removal.`,
 		);
+
+		if (this.notificationsEnabled) {
+			for (const user of usersToNotify) {
+				await this.slackApi.sendInactivityWarningDM(user.email, this.notifyAfterDays, "GitHub Copilot");
+			}
+
+			if (usersToRemove.length > 0) {
+				await this.slackApi.sendRemovalCandidatesNotification(
+					this.notificationRecipient,
+					usersToRemove,
+					this.removeAfterDays,
+					"GitHub Copilot",
+				);
+			}
+		}
 
 		return {
 			seats,
