@@ -1,24 +1,23 @@
 # Cursor Active Users Bot
 
-A scheduled AWS Lambda function that monitors Cursor IDE and GitHub Copilot usage within your team and sends Slack notifications about inactive users.
+A scheduled AWS Lambda function that monitors Cursor IDE and GitHub Copilot usage within your team and sends multi-level Slack notifications about inactive users.
 
 ## 🚀 Features
 
-- ✅ **Multi-service support**: Monitor both Cursor IDE and GitHub Copilot usage
-- ✅ **Flexible configuration**: Enable/disable services independently
-- ✅ Fetches team members from Cursor Admin API
-- ✅ Fetches Copilot seat assignments from GitHub API
-- ✅ Retrieves daily usage data with configurable time periods
-- ✅ Identifies users who haven't been active in either service
-- ✅ **Looks up Slack usernames by email address**
-- ✅ **Sends notifications with @username mentions for better visibility**
-- ✅ **Deduplicates users across multiple services**
-- ✅ Sends Slack notifications to specified users/channels
+- ✅ **Multi-service support**: Monitor both Cursor IDE and GitHub Copilot usage independently
+- ✅ **Flexible configuration**: Enable/disable services independently via environment variables
+- ✅ **Multi-level notifications**:
+  - **Warning DMs**: Direct messages to users after configurable inactivity period (default: 60 days)
+  - **Removal notifications**: Channel notifications for long-term inactive users (default: 90 days)
+- ✅ **Cursor IDE monitoring**: Fetches team members and daily usage data from Cursor Admin API
+- ✅ **GitHub Copilot monitoring**: Fetches seat assignments and activity data from GitHub API
+- ✅ **Smart user lookup**: Finds Slack users by email with @username mentions
+- ✅ **Configurable timing**: Separate notification and removal thresholds
 - ✅ Secure secret management via AWS Secrets Manager
-- ✅ Comprehensive unit tests with 100% coverage
+- ✅ Comprehensive unit tests with high coverage
 - ✅ Type-safe implementation with TypeScript
 - ✅ Local development server for testing
-- ✅ Clean service-based architecture
+- ✅ Clean service-based architecture with dependency injection
 
 ## 🏗️ Architecture
 
@@ -26,23 +25,28 @@ The application is structured with clean separation of concerns:
 
 ### APIs (`src/apis/`)
 
-- **`CursorAdminApi`** - Handles interactions with the [Cursor Admin API](https://docs.cursor.com/account/teams/admin-api)
-- **`GitHubApi`** - Handles interactions with the [GitHub Copilot API](https://docs.github.com/en/rest/copilot/copilot-user-management)
-- **`SlackApi`** - Manages Slack message sending with user lookup capabilities
+- **[`CursorAdminApi`](src/apis/cursor-admin-api.ts)** - Handles interactions with the [Cursor Admin API](https://docs.cursor.com/account/teams/admin-api)
+- **[`GitHubApi`](src/apis/github-api.ts)** - Handles interactions with the [GitHub Copilot API](https://docs.github.com/en/rest/copilot/copilot-user-management)
+- **[`SlackApi`](src/apis/slack-api.ts)** - Manages Slack message sending, user lookup, and multi-level notifications
 
 ### Services (`src/services/`)
 
-- **`CursorOperations`** - Orchestrates Cursor-specific operations
-- **`GitHubOperations`** - Orchestrates GitHub Copilot-specific operations
-- **`InactiveUsersAnalyzer`** - Contains business logic for identifying inactive users
+- **[`CursorOperations`](src/services/cursor-operations.ts)** - Orchestrates Cursor-specific operations and user categorization
+- **[`GitHubOperations`](src/services/github-operations.ts)** - Orchestrates GitHub Copilot-specific operations and user categorization
 
 ### Lambda Handler (`src/lambda/`)
 
-- **`handler`** - Main Lambda function that orchestrates the services
+- **[`handler`](src/lambda/index.ts)** - Main Lambda function that orchestrates the services based on configuration
 
 ### Local Development Server (`src/server/`)
 
-- **`local-server`** - Express server for local development and testing
+- **[`local-server`](src/server/local-server.ts)** - Express server for local development and testing with separate endpoints for each service
+
+### Utilities (`src/utils/`)
+
+- **[`env.ts`](src/utils/env.ts)** - Environment configuration with Zod validation
+- **[`secrets.ts`](src/utils/secrets.ts)** - AWS Secrets Manager integration
+- **[`dates.ts`](src/utils/dates.ts)** - Date utilities for usage data ranges
 
 ## 📋 Prerequisites
 
@@ -50,7 +54,8 @@ The application is structured with clean separation of concerns:
 - NPM (comes with Node.js)
 - AWS CLI installed and configured with appropriate credentials
 - AWS CDK Toolkit installed globally (`npm install -g aws-cdk`)
-- A Cursor Admin API Key
+- A Cursor Admin API Key (if using Cursor monitoring)
+- A GitHub Token (if using GitHub Copilot monitoring)
 - A Slack App with appropriate permissions
 
 ## 🔧 Quick Start
@@ -95,6 +100,16 @@ npx cdk deploy
 
 ## 🔐 Configuration
 
+### Environment Variables
+
+The following environment variables can be set to configure the bot:
+
+- `NOTIFY_AFTER_DAYS` - Days before sending warning DMs (default: 60)
+- `REMOVE_AFTER_DAYS` - Days before flagging for removal (default: 90)
+- `ENABLE_CURSOR` - Enable/disable Cursor monitoring (default: true)
+- `ENABLE_GITHUB_COPILOT` - Enable/disable GitHub Copilot monitoring (default: true)
+- `ENABLE_SLACK_NOTIFICATIONS` - Enable/disable Slack notifications (default: true)
+
 ### AWS Secrets Manager
 
 After deployment, update the `CursorActiveUserBotSecrets` secret in AWS Secrets Manager:
@@ -103,13 +118,18 @@ After deployment, update the `CursorActiveUserBotSecrets` secret in AWS Secrets 
 {
   "CURSOR_API_KEY": "key_your_cursor_admin_api_key_here",
   "GITHUB_TOKEN": "your_github_token_here",
+  "GITHUB_ORG": "your_github_organization_name",
   "SLACK_BOT_TOKEN": "xoxb-your-slack-bot-token-here",
   "SLACK_SIGNING_SECRET": "your-slack-app-signing-secret-here",
   "SLACK_USER_ID": "U1234567890"
 }
 ```
 
-**Note**: Only include the secrets for the services you plan to enable. For example, if you only want to monitor GitHub Copilot, you can omit `CURSOR_API_KEY`.
+**Note**: Include only the secrets for the services you plan to enable:
+
+- **Cursor only**: `CURSOR_API_KEY`, `SLACK_BOT_TOKEN`, `SLACK_SIGNING_SECRET`, `SLACK_USER_ID`
+- **GitHub Copilot only**: `GITHUB_TOKEN`, `GITHUB_ORG`, `SLACK_BOT_TOKEN`, `SLACK_SIGNING_SECRET`, `SLACK_USER_ID`
+- **Both services**: All secrets above
 
 ### GitHub Token Setup
 
@@ -151,8 +171,14 @@ Quick start for local development:
 # Start development server with auto-restart
 npm run dev
 
-# Test the inactive users check
-curl -X POST http://localhost:3000/check-inactive-users
+# Test the Cursor inactive users check
+curl -X POST http://localhost:3000/check-cursor
+
+# Test the GitHub Copilot inactive users check
+curl -X POST http://localhost:3000/check-github
+
+# Check server health
+curl http://localhost:3000/health
 ```
 
 ### Development Workflow
@@ -187,9 +213,9 @@ npm run build
 
 The project includes comprehensive unit tests for all services:
 
-- **CursorAdminApi tests** - Mock HTTP requests and validate API interactions
-- **SlackApi tests** - Mock Slack WebClient and test message formatting
-- **InactiveUsersAnalyzer tests** - Test business logic for user activity analysis
+- **API tests** (`tests/apis/`) - Mock HTTP requests and validate API interactions
+- **Service tests** (`tests/services/`) - Test business logic for user activity analysis
+- **Infrastructure tests** (`tests/infrastructure/`) - Test CDK stack configuration
 
 Run tests with coverage:
 
@@ -198,6 +224,9 @@ npm test
 
 # Run tests in watch mode during development
 npm test -- --watch
+
+# Run specific test file
+npm test -- cursor-operations.test.ts
 ```
 
 ## 📊 How It Works
@@ -206,23 +235,27 @@ npm test -- --watch
 2. **Service Processing** - For each enabled service:
    - **Cursor**: Calls Cursor Admin API to get team members and usage data
    - **GitHub Copilot**: Calls GitHub API to get Copilot seat assignments and activity data
-3. **Analyze Activity** - Identifies users without recent activity in each service
-4. **Deduplicate Users** - Removes duplicate users across services (based on email)
-5. **Lookup Slack Users** - Finds Slack usernames by email addresses
-6. **Send Notifications** - Posts Slack message with inactive user list including @username mentions
+3. **Categorize Users** - Identifies users into two categories:
+   - **Warning candidates**: Users inactive for `NOTIFY_AFTER_DAYS` (default: 60 days)
+   - **Removal candidates**: Users inactive for `REMOVE_AFTER_DAYS` (default: 90 days)
+4. **Send Direct Messages** - Sends warning DMs to users who haven't used the service recently
+5. **Send Channel Notifications** - Notifies administrators about users who need license removal
+6. **Lookup Slack Users** - Finds Slack usernames by email addresses for @mentions
 
 ### Service Configuration
 
 The bot supports flexible service configuration via environment variables:
 
 - `ENABLE_CURSOR=true/false` - Enable/disable Cursor monitoring (default: true)
-- `ENABLE_GITHUB_COPILOT=true/false` - Enable/disable GitHub Copilot monitoring (default: false)
-- `GITHUB_ORG=your-org-name` - Required when GitHub Copilot is enabled
+- `ENABLE_GITHUB_COPILOT=true/false` - Enable/disable GitHub Copilot monitoring (default: true)
+- `ENABLE_SLACK_NOTIFICATIONS=true/false` - Enable/disable Slack notifications (default: true)
 
 You can run the bot with:
+
 - Only Cursor monitoring
 - Only GitHub Copilot monitoring  
 - Both services simultaneously
+- Notifications disabled for testing
 
 ## 💬 Message Format
 
@@ -231,20 +264,27 @@ The bot sends enhanced notifications that include:
 - Finnish date format for the activity cutoff date
 - User display names with email addresses
 - **@username mentions** when Slack users are found
-- Graceful fallback when users aren't found in Slack
+- Service-specific labeling (Cursor vs GitHub Copilot)
+- Separate messages for warnings and removal candidates
 
-Example message:
+Example warning message:
 
 ```text
-Inactive users (no activity since 10.4.2025):
-- John Doe (john@example.com, <@U12345678>) - Cursor
-- Jane Smith (jane@example.com, <@U87654321>) - GitHub Copilot
-- Bob Wilson (bob@example.com) - Both services
+You haven't used Cursor for 60 days. If you are planning to not use the app, please inform IT so we can remove the license.
+```
+
+Example removal notification:
+
+```text
+Cursor license removal candidates (no activity for 90+ days):
+- John Doe (john@example.com, <@U12345678>)
+- Jane Smith (jane@example.com, <@U87654321>)
+- Bob Wilson (bob@example.com)
 ```
 
 ## ⏰ Scheduling
 
-The Lambda function is triggered by EventBridge (CloudWatch Events) on the 1st of every month at 00:00 UTC. You can modify the schedule in the CDK stack configuration.
+The Lambda function is triggered by EventBridge (CloudWatch Events) **weekly on Mondays at 9:00 AM UTC**. You can modify the schedule in the CDK stack configuration.
 
 ## 🔍 API Reference
 
@@ -279,7 +319,7 @@ The API uses Bearer token authentication with your GitHub token.
 
 1. **Update AWS Secrets Manager** with your actual API keys and tokens
 2. **Verify Lambda function** is created and configured correctly
-3. **Check EventBridge rule** is set up for monthly execution
+3. **Check EventBridge rule** is set up for weekly execution
 4. **Monitor CloudWatch Logs** for execution logs
 
 ### Useful CDK Commands
@@ -311,6 +351,12 @@ The API uses Bearer token authentication with your GitHub token.
 - Ensure Slack app has required permissions
 - Check that API keys are valid and active
 
+**Service-specific Issues:**
+
+- Check that the required service is enabled in environment variables
+- Verify that the correct secrets are provided for each service
+- Monitor CloudWatch logs for service-specific error messages
+
 **Deployment Issues:**
 
 - Run `npm run build` before CDK operations
@@ -322,19 +368,23 @@ The API uses Bearer token authentication with your GitHub token.
 - **CloudWatch Logs**: Check `/aws/lambda/InactiveUserCheckerFunction-...` log group
 - **Local Testing**: Use `npm run dev` to test functionality locally
 - **Manual Trigger**: Test Lambda function manually from AWS console
+- **Service-specific Testing**: Use separate endpoints for each service
 
 ## 📚 Documentation
 
 - [Local Development Guide](LOCAL_DEVELOPMENT.md) - Detailed guide for local development
+- [Agent Guide](AGENT.md) - Quick reference for development
 - [Cursor Admin API Documentation](https://docs.cursor.com/account/teams/admin-api) - Official API docs
+- [GitHub Copilot API Documentation](https://docs.github.com/en/rest/copilot/copilot-user-management) - Official API docs
 - [AWS CDK Documentation](https://docs.aws.amazon.com/cdk/) - CDK reference
 
 ## 🔒 Security
 
 - API keys stored securely in AWS Secrets Manager
-- IAM roles with least privilege access (the CDK stack provisions necessary permissions for the Lambda, including Secrets Manager access and CloudWatch logging)
+- IAM roles with least privilege access
 - Slack app permissions scoped to minimum requirements
 - No sensitive data in logs or code
+- Zod schema validation for all configurations
 
 ## 📈 Monitoring
 
@@ -342,3 +392,4 @@ The API uses Bearer token authentication with your GitHub token.
 - EventBridge rule execution monitoring
 - Slack message delivery confirmation
 - Error notifications and alerting
+- Service-specific performance metrics
