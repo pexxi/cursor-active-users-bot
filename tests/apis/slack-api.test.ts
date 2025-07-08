@@ -315,7 +315,7 @@ describe("SlackApi", () => {
 				message: { text: "test message" },
 			});
 
-			await slackApi.sendRemovalCandidatesNotification(mockRecipientUserId, usersToRemove, inactiveDays, appName);
+			await slackApi.sendChannelNotification(mockRecipientUserId, usersToRemove, inactiveDays, appName);
 
 			expect(mockPostMessage).toHaveBeenCalledWith({
 				channel: mockRecipientUserId,
@@ -350,7 +350,7 @@ describe("SlackApi", () => {
 
 			const consoleWarnSpy = jest.spyOn(console, "warn").mockImplementation();
 
-			await slackApi.sendRemovalCandidatesNotification(mockRecipientUserId, usersToRemove, inactiveDays, appName);
+			await slackApi.sendChannelNotification(mockRecipientUserId, usersToRemove, inactiveDays, appName);
 
 			expect(mockPostMessage).toHaveBeenCalledWith({
 				channel: mockRecipientUserId,
@@ -370,7 +370,7 @@ describe("SlackApi", () => {
 		it("should not send message when no users to remove", async () => {
 			const consoleSpy = jest.spyOn(console, "log").mockImplementation();
 
-			await slackApi.sendRemovalCandidatesNotification(mockRecipientUserId, [], 90, "Test App");
+			await slackApi.sendChannelNotification(mockRecipientUserId, [], 90, "Test App");
 
 			expect(mockPostMessage).not.toHaveBeenCalled();
 			expect(mockLookupByEmail).not.toHaveBeenCalled();
@@ -396,7 +396,7 @@ describe("SlackApi", () => {
 			mockPostMessage.mockRejectedValueOnce(mockError);
 
 			await expect(
-				slackApi.sendRemovalCandidatesNotification(mockRecipientUserId, usersToRemove, inactiveDays, appName),
+				slackApi.sendChannelNotification(mockRecipientUserId, usersToRemove, inactiveDays, appName),
 			).rejects.toThrow("Slack API Error");
 		});
 
@@ -406,7 +406,7 @@ describe("SlackApi", () => {
 
 			const usersToRemove: User[] = [{ name: "John Doe", email: "john@example.com" }];
 
-			await disabledSlackApi.sendRemovalCandidatesNotification(mockRecipientUserId, usersToRemove, 90, "Test App");
+			await disabledSlackApi.sendChannelNotification(mockRecipientUserId, usersToRemove, 90, "Test App");
 
 			expect(mockPostMessage).not.toHaveBeenCalled();
 			expect(consoleSpy).toHaveBeenCalledWith("Slack notifications are disabled.");

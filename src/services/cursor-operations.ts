@@ -1,5 +1,5 @@
 import { CursorAdminApi, type DailyUsageData } from "../apis/cursor-admin-api";
-import { SlackApi } from "../apis/slack-api";
+import type { SlackApi } from "../apis/slack-api";
 import type { User } from "../types/users";
 import { getUsageDataDateRange } from "../utils/dates";
 import type { EnvData } from "../utils/env";
@@ -26,14 +26,14 @@ export class CursorOperations {
 	private notificationRecipient: string;
 	private notificationsEnabled: boolean;
 
-	constructor(secrets: SecretsData, env: EnvData) {
+	constructor(secrets: SecretsData, env: EnvData, slackApi: SlackApi) {
 		this.cursorApi = new CursorAdminApi(secrets.CURSOR_API_KEY);
-		this.slackApi = new SlackApi(secrets.SLACK_BOT_TOKEN, secrets.SLACK_SIGNING_SECRET, env.ENABLE_SLACK_NOTIFICATIONS);
 		// Use environment variables for notification and removal periods
 		this.notifyAfterDays = env.NOTIFY_AFTER_DAYS; // Default to 60 days if not set
 		this.removeAfterDays = env.REMOVE_AFTER_DAYS; // Default to 90 days if not set
 		this.notificationRecipient = secrets.SLACK_USER_ID; // Default to empty string if not set
 		this.notificationsEnabled = env.ENABLE_SLACK_NOTIFICATIONS; // Default to false if not set
+		this.slackApi = slackApi; // Use provided Slack API instance
 	}
 
 	/**
@@ -73,14 +73,16 @@ export class CursorOperations {
 		notifyPeriodUsage: DailyUsageData[],
 		removePeriodUsage: DailyUsageData[],
 	): CategorizedInactiveUsers {
-		// Find users inactive for notification period
-		const usersToNotify = this.findInactiveUsers(members, notifyPeriodUsage);
-
 		// Find users inactive for removal period
 		const usersToRemove = this.findInactiveUsers(members, removePeriodUsage);
+		// Find users inactive for notification period
+		const usersToNotify = this.findInactiveUsers(members, notifyPeriodUsage);
+		// Filter out users who are already in the removal list from the notification list
+		const removeEmails = new Set(usersToRemove.map((user) => user.email));
+		const filteredUsersToNotify = usersToNotify.filter((user) => !removeEmails.has(user.email));
 
 		return {
-			usersToNotify,
+			usersToNotify: filteredUsersToNotify,
 			usersToRemove,
 		};
 	}
@@ -119,19 +121,12 @@ export class CursorOperations {
 
 		console.log(`Found ${usersToNotify.length} users to notify and ${usersToRemove.length} users for removal.`);
 
-		if (this.notificationsEnabled) {
-			for (const user of usersToNotify) {
-				await this.slackApi.sendInactivityWarningDM(user.email, this.notifyAfterDays, "Cursor");
-			}
+		for (const user of usersToNotify) {
+			await this.slackApi.sendInactivityWarningDM(user.email, this.notifyAfterDays, "Cursor");
+		}
 
-			if (usersToRemove.length > 0) {
-				await this.slackApi.sendRemovalCandidatesNotification(
-					this.notificationRecipient,
-					usersToRemove,
-					this.removeAfterDays,
-					"Cursor",
-				);
-			}
+		if (usersToRemove.length > 0) {
+			await this.slackApi.sendChannelNotification(this.notificationRecipient, usersToNotify, usersToRemove, "Cursor");
 		}
 
 		return {

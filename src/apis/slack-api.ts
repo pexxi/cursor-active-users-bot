@@ -2,8 +2,9 @@ import { App } from "@slack/bolt";
 import type { User } from "../types/users";
 
 export class SlackApi {
-	private app: App;
+	private app: App | null = null; // App instance, null if not enabled
 	private enabled = true; // Default to enabled, can be set via constructor
+	private userIdCache: Map<string, string>;
 
 	constructor(botToken: string, signingSecret: string, enabled = false) {
 		if (enabled) {
@@ -11,8 +12,11 @@ export class SlackApi {
 				token: botToken,
 				signingSecret,
 			});
+		} else {
+			console.log("Slack notifications are disabled.");
 		}
 		this.enabled = enabled;
+		this.userIdCache = new Map<string, string>();
 	}
 
 	/**
@@ -21,50 +25,58 @@ export class SlackApi {
 	 * @param usersToRemove Array of users to be removed
 	 * @param inactiveDays Number of days users have been inactive
 	 */
-	async sendRemovalCandidatesNotification(
+	async sendChannelNotification(
 		recipientUserId: string,
+		usersToNotify: User[],
 		usersToRemove: User[],
-		inactiveDays: number,
 		appName: string,
 	): Promise<boolean> {
-		if (!this.enabled) {
-			console.log("Slack notifications are disabled.");
-			return false;
-		}
 		if (!recipientUserId) {
 			console.warn("No recipient user ID provided for Slack notification.");
 			return false;
 		}
-		if (usersToRemove.length === 0) {
-			console.log("No users for removal to report.");
-			return false;
-		}
 
-		// Look up Slack usernames for each user to be removed
-		const messageLines = await Promise.all(
-			usersToRemove.map(async (user) => {
-				try {
+		const combinedUsers = new Set([...usersToNotify, ...usersToRemove]);
+		for (const user of combinedUsers) {
+			try {
+				// Check cache first
+				if (!this.userIdCache.has(user.email) && this.app) {
 					const slackUser = await this.app.client.users.lookupByEmail({
 						email: user.email,
 					});
-
-					const username = slackUser.user?.real_name ?? user.name;
-					const email = slackUser.user?.profile?.email ?? user.email;
-					const userId = slackUser.user?.id;
-
-					return `- ${username} (${email}${userId ? `, <@${userId}>` : ""})`;
-				} catch (error) {
-					console.warn(`Could not find Slack user for email ${user.email}:`, JSON.stringify(error, null, 2));
-					return `- ${user.name} (${user.email})`;
+					if (slackUser.user?.id) {
+						this.userIdCache.set(user.email, slackUser.user.id);
+					} else {
+						console.warn(`No Slack user ID found for email: ${user.email}`);
+					}
 				}
-			}),
-		);
+			} catch (error) {
+				console.warn(`Error looking up Slack user for email ${user.email}:`, JSON.stringify(error, null, 2));
+			}
+		}
 
-		const messageText = `${appName} license removal candidates (no activity for ${inactiveDays}+ days):\n${messageLines.join("\n")}`;
+		let messageText = `${appName} inactive users:\n`;
+		usersToNotify.forEach((user) => {
+			const username = user.name;
+			const email = user.email;
+			const userId = this.userIdCache.get(user.email);
+			messageText += `- :warning: ${username} (${email}${userId ? `, <@${userId}>` : ""}) \n`;
+		});
+		messageText += "\n";
+		usersToRemove.forEach((user) => {
+			const username = user.name;
+			const email = user.email;
+			const userId = this.userIdCache.get(user.email);
+			messageText += `- :x: ${username} (${email}${userId ? `, <@${userId}>` : ""}) \n`;
+		});
 
-		console.log("Sending Slack message for users to remove:", messageText);
+		console.log("Sending Slack message:\n", messageText);
 
 		try {
+			if (!this.app) {
+				console.log("Slack disabled.");
+				return false;
+			}
 			await this.app.client.chat.postMessage({
 				channel: recipientUserId,
 				text: messageText,
@@ -89,86 +101,37 @@ export class SlackApi {
 			return false;
 		}
 		try {
-			// Look up the user by email
-			const slackUser = await this.app.client.users.lookupByEmail({
-				email: userEmail,
-			});
+			// Check cache first
+			let userId = this.userIdCache.get(userEmail) ?? "";
+			if (!userId && this.app) {
+				// Look up the user by email
+				const slackUser = await this.app.client.users.lookupByEmail({
+					email: userEmail,
+				});
 
-			if (!slackUser.user?.id) {
-				console.warn(`Could not find Slack user ID for email: ${userEmail}`);
-				return false;
+				if (!slackUser.user?.id) {
+					console.warn(`Could not find Slack user ID for email: ${userEmail}`);
+					return false;
+				}
+
+				this.userIdCache.set(userEmail, slackUser.user.id);
+				userId = slackUser.user.id;
 			}
 
-			const messageText = `You haven't used ${appName} for ${inactiveDays} days. If you are planning to not use the app, please inform IT so we can remove the license.`;
+			const messageText = `You haven't used ${appName} for ${inactiveDays} days. 
+If you are planning to not use the app, please inform IT so we can remove the license.`;
 
-			await this.app.client.chat.postMessage({
-				channel: slackUser.user.id,
-				text: messageText,
-			});
+			if (this.app) {
+				await this.app.client.chat.postMessage({
+					channel: userId,
+					text: messageText,
+				});
+			}
 
 			console.log(`Inactivity warning DM sent successfully to ${userEmail}`);
 			return true;
 		} catch (error) {
 			console.warn(`Failed to send inactivity warning DM to ${userEmail}:`, JSON.stringify(error, null, 2));
-			return false;
-		}
-	}
-
-	/**
-	 * Send a direct message to a specific user about inactive Cursor users
-	 * @param recipientUserId Slack user ID to send the message to
-	 * @param inactiveUsers Array of inactive users
-	 * @deprecated Use sendRemovalCandidatesNotification instead
-	 */
-	async sendInactiveUsersNotification(
-		recipientUserId: string,
-		inactiveUsers: User[],
-		inactiveDays: number,
-		appName: string,
-	): Promise<boolean> {
-		if (!this.enabled) {
-			console.log("Slack notifications are disabled.");
-			return false;
-		}
-		if (inactiveUsers.length === 0) {
-			console.log("No inactive users to report.");
-			return false;
-		}
-
-		// Look up Slack usernames for each inactive user
-		const messageLines = await Promise.all(
-			inactiveUsers.map(async (user) => {
-				try {
-					const slackUser = await this.app.client.users.lookupByEmail({
-						email: user.email,
-					});
-
-					const username = slackUser.user?.real_name ?? user.name;
-					const email = slackUser.user?.profile?.email ?? user.email;
-					const userId = slackUser.user?.id;
-
-					return `- ${username} (${email}${userId ? `, <@${userId}>` : ""})`;
-				} catch (error) {
-					console.warn(`Could not find Slack user for email ${user.email}:`, JSON.stringify(error, null, 2));
-					return `- ${user.name} (${user.email})`;
-				}
-			}),
-		);
-
-		const inactiveSinceDate = new Date(Date.now() - inactiveDays * 24 * 60 * 60 * 1000);
-		const messageText = `Inactive ${appName} users (no activity since ${inactiveSinceDate.toLocaleDateString("fi")}):\n${messageLines.join("\n")}`;
-
-		console.log("Sending Slack message for inactive users:", messageText);
-
-		try {
-			await this.app.client.chat.postMessage({
-				channel: recipientUserId,
-				text: messageText,
-			});
-			console.log("Slack message sent successfully.");
-			return true;
-		} catch (error) {
-			console.error("Error sending Slack message:", JSON.stringify(error, null, 2));
 			return false;
 		}
 	}

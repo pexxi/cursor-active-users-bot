@@ -1,5 +1,6 @@
 import type { Context, ScheduledEvent } from "aws-lambda";
 import * as dotenv from "dotenv";
+import { SlackApi } from "../apis/slack-api";
 import { CursorOperations } from "../services/cursor-operations";
 import { GitHubOperations } from "../services/github-operations";
 import { getEnv } from "../utils/env";
@@ -18,12 +19,17 @@ export const handler = async (event: ScheduledEvent, _context: Context): Promise
 		console.log(`Services enabled: Cursor=${env.ENABLE_CURSOR}, GitHub Copilot=${env.ENABLE_GITHUB_COPILOT}`);
 
 		const secrets = await fetchSecrets();
+		const slackApi = new SlackApi(
+			secrets.SLACK_BOT_TOKEN,
+			secrets.SLACK_SIGNING_SECRET,
+			env.ENABLE_SLACK_NOTIFICATIONS,
+		);
 
 		// Process Cursor users if enabled§
 		if (env.ENABLE_CURSOR) {
 			console.log("Processing Cursor inactive users...");
 
-			const cursorOperations = new CursorOperations(secrets, env);
+			const cursorOperations = new CursorOperations(secrets, env, slackApi);
 			await cursorOperations.processInactiveUsers();
 		} else {
 			console.log("Cursor processing disabled.");
@@ -32,7 +38,7 @@ export const handler = async (event: ScheduledEvent, _context: Context): Promise
 		// Process GitHub Copilot users if enabled
 		if (env.ENABLE_GITHUB_COPILOT) {
 			console.log("Processing GitHub Copilot inactive users...");
-			const githubOperations = new GitHubOperations(secrets, env);
+			const githubOperations = new GitHubOperations(secrets, env, slackApi);
 			await githubOperations.processInactiveUsers();
 		} else {
 			console.log("GitHub Copilot processing disabled.");

@@ -1,5 +1,5 @@
 import { GitHubApi, type GitHubCopilotSeat } from "../apis/github-api";
-import { SlackApi } from "../apis/slack-api";
+import type { SlackApi } from "../apis/slack-api";
 import type { User } from "../types/users";
 import { type DateRangeInfo, getUsageDataDateRange } from "../utils/dates";
 import type { EnvData } from "../utils/env";
@@ -23,9 +23,9 @@ export class GitHubOperations {
 	notificationRecipient: string;
 	notificationsEnabled: boolean;
 
-	constructor(secrets: SecretsData, env: EnvData) {
+	constructor(secrets: SecretsData, env: EnvData, slackApi: SlackApi) {
 		this.githubApi = new GitHubApi(secrets.GITHUB_TOKEN, secrets.GITHUB_ORG);
-		this.slackApi = new SlackApi(secrets.SLACK_BOT_TOKEN, secrets.SLACK_SIGNING_SECRET, env.ENABLE_SLACK_NOTIFICATIONS);
+		this.slackApi = slackApi;
 		// Use environment variables for notification and removal periods
 		this.notifyAfterDays = env.NOTIFY_AFTER_DAYS; // Default to 30 days if not set
 		this.removeAfterDays = env.REMOVE_AFTER_DAYS; // Default to 90 days if not set
@@ -121,10 +121,10 @@ export class GitHubOperations {
 			}
 
 			if (usersToRemove.length > 0) {
-				await this.slackApi.sendRemovalCandidatesNotification(
+				await this.slackApi.sendChannelNotification(
 					this.notificationRecipient,
+					usersToNotify,
 					usersToRemove,
-					this.removeAfterDays,
 					"GitHub Copilot",
 				);
 			}

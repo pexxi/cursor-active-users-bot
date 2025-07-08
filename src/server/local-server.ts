@@ -1,4 +1,5 @@
 import express, { type NextFunction, type Request, type Response } from "express";
+import { SlackApi } from "../apis/slack-api";
 import { CursorOperations } from "../services/cursor-operations";
 import { GitHubOperations } from "../services/github-operations";
 import { getEnv } from "../utils/env";
@@ -6,51 +7,14 @@ import { loadLocalSecrets } from "../utils/secrets";
 
 const env = getEnv(true);
 const secrets = loadLocalSecrets();
+const slackApi = new SlackApi(secrets.SLACK_BOT_TOKEN, secrets.SLACK_SIGNING_SECRET, env.ENABLE_SLACK_NOTIFICATIONS);
+const cursorOperations = new CursorOperations(secrets, env, slackApi);
+const githubOperations = new GitHubOperations(secrets, env, slackApi);
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.use(express.json());
-
-/**
- * Main function to check for inactive Cursor users
- */
-async function checkInactiveCursorUsers() {
-	console.log("Starting inactive Cursor users check...");
-
-	try {
-		const cursorOperations = new CursorOperations(secrets, env);
-		const { usersToNotify, usersToRemove } = await cursorOperations.processInactiveUsers();
-
-		return {
-			usersToNotify,
-			usersToRemove,
-		};
-	} catch (error) {
-		console.error("Error checking inactive Cursor users:", error);
-		throw error;
-	}
-}
-
-/**
- * Main function to check for inactive GitHub Copilot users
- */
-async function checkInactiveGitHubUsers() {
-	console.log("Starting inactive GitHub Copilot users check...");
-
-	try {
-		const githubOperations = new GitHubOperations(secrets, env);
-		const { usersToNotify, usersToRemove } = await githubOperations.processInactiveUsers();
-
-		return {
-			usersToNotify,
-			usersToRemove,
-		};
-	} catch (error) {
-		console.error("Error checking inactive GitHub Copilot users:", error);
-		throw error;
-	}
-}
 
 // Routes
 app.get("/", (_req: Request, res: Response) => {
@@ -71,8 +35,11 @@ app.get("/health", (_req: Request, res: Response) => {
 
 app.post("/check-cursor", async (_req: Request, res: Response) => {
 	try {
-		const result = await checkInactiveCursorUsers();
-		res.json(result);
+		const { usersToNotify, usersToRemove } = await cursorOperations.processInactiveUsers();
+		res.json({
+			usersToNotify,
+			usersToRemove,
+		});
 	} catch (error) {
 		console.error("Error in /check-cursor endpoint:", error);
 		res.status(500).json({
@@ -84,8 +51,11 @@ app.post("/check-cursor", async (_req: Request, res: Response) => {
 
 app.post("/check-github", async (_req: Request, res: Response) => {
 	try {
-		const result = await checkInactiveGitHubUsers();
-		res.json(result);
+		const { usersToNotify, usersToRemove } = await githubOperations.processInactiveUsers();
+		res.json({
+			usersToNotify,
+			usersToRemove,
+		});
 	} catch (error) {
 		console.error("Error in /check-github endpoint:", error);
 		res.status(500).json({
