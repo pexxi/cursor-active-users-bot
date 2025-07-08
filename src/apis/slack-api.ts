@@ -26,18 +26,18 @@ export class SlackApi {
 		usersToRemove: User[],
 		inactiveDays: number,
 		appName: string,
-	): Promise<void> {
+	): Promise<boolean> {
 		if (!this.enabled) {
 			console.log("Slack notifications are disabled.");
-			return;
+			return false;
 		}
 		if (!recipientUserId) {
 			console.warn("No recipient user ID provided for Slack notification.");
-			return;
+			return false;
 		}
 		if (usersToRemove.length === 0) {
 			console.log("No users for removal to report.");
-			return;
+			return false;
 		}
 
 		// Look up Slack usernames for each user to be removed
@@ -70,9 +70,10 @@ export class SlackApi {
 				text: messageText,
 			});
 			console.log("Removal candidates notification sent successfully.");
+			return true;
 		} catch (error) {
 			console.error("Error sending removal candidates notification:", JSON.stringify(error, null, 2));
-			throw error;
+			return false;
 		}
 	}
 
@@ -124,14 +125,14 @@ export class SlackApi {
 		inactiveUsers: User[],
 		inactiveDays: number,
 		appName: string,
-	): Promise<void> {
+	): Promise<boolean> {
 		if (!this.enabled) {
 			console.log("Slack notifications are disabled.");
-			return;
+			return false;
 		}
 		if (inactiveUsers.length === 0) {
 			console.log("No inactive users to report.");
-			return;
+			return false;
 		}
 
 		// Look up Slack usernames for each inactive user
@@ -165,9 +166,10 @@ export class SlackApi {
 				text: messageText,
 			});
 			console.log("Slack message sent successfully.");
+			return true;
 		} catch (error) {
 			console.error("Error sending Slack message:", JSON.stringify(error, null, 2));
-			throw error;
+			return false;
 		}
 	}
 }
