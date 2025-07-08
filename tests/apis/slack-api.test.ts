@@ -69,7 +69,7 @@ describe("SlackApi", () => {
 				message: { text: "test message" },
 			});
 
-			await slackApi.sendInactiveUsersNotification(mockRecipientUserId, inactiveUsers, 60, "Test App");
+			await slackApi.sendChannelNotification(mockRecipientUserId, inactiveUsers, [], "Test App");
 
 			const todayMinus60Days = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000);
 
@@ -113,7 +113,7 @@ describe("SlackApi", () => {
 
 			const consoleWarnSpy = jest.spyOn(console, "warn").mockImplementation();
 
-			await slackApi.sendInactiveUsersNotification(mockRecipientUserId, inactiveUsers, 60, "Test App");
+			await slackApi.sendChannelNotification(mockRecipientUserId, inactiveUsers, [], "Test App");
 
 			const todayMinus60Days = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000);
 
@@ -135,7 +135,7 @@ describe("SlackApi", () => {
 		it("should not send message when no inactive users", async () => {
 			const consoleSpy = jest.spyOn(console, "log").mockImplementation();
 
-			await slackApi.sendInactiveUsersNotification(mockRecipientUserId, [], 60, "Test App");
+			await slackApi.sendChannelNotification(mockRecipientUserId, [], [], "Test App");
 
 			expect(mockPostMessage).not.toHaveBeenCalled();
 			expect(mockLookupByEmail).not.toHaveBeenCalled();
@@ -159,7 +159,7 @@ describe("SlackApi", () => {
 			mockPostMessage.mockRejectedValueOnce(mockError);
 
 			await expect(
-				slackApi.sendInactiveUsersNotification(mockRecipientUserId, inactiveUsers, 60, "Test App"),
+				slackApi.sendChannelNotification(mockRecipientUserId, inactiveUsers, [], "Test App"),
 			).rejects.toThrow("Slack API Error");
 		});
 
@@ -169,7 +169,7 @@ describe("SlackApi", () => {
 
 			const inactiveUsers: User[] = [{ name: "John Doe", email: "john@example.com" }];
 
-			await disabledSlackApi.sendInactiveUsersNotification(mockRecipientUserId, inactiveUsers, 60, "Test App");
+			await disabledSlackApi.sendChannelNotification(mockRecipientUserId, [], inactiveUsers, "Test App");
 
 			expect(mockPostMessage).not.toHaveBeenCalled();
 			expect(consoleSpy).toHaveBeenCalledWith("Slack notifications are disabled.");
@@ -315,7 +315,7 @@ describe("SlackApi", () => {
 				message: { text: "test message" },
 			});
 
-			await slackApi.sendChannelNotification(mockRecipientUserId, usersToRemove, inactiveDays, appName);
+			await slackApi.sendChannelNotification(mockRecipientUserId, [], usersToRemove, appName);
 
 			expect(mockPostMessage).toHaveBeenCalledWith({
 				channel: mockRecipientUserId,
@@ -350,7 +350,7 @@ describe("SlackApi", () => {
 
 			const consoleWarnSpy = jest.spyOn(console, "warn").mockImplementation();
 
-			await slackApi.sendChannelNotification(mockRecipientUserId, usersToRemove, inactiveDays, appName);
+			await slackApi.sendChannelNotification(mockRecipientUserId, [], usersToRemove, appName);
 
 			expect(mockPostMessage).toHaveBeenCalledWith({
 				channel: mockRecipientUserId,
@@ -370,7 +370,7 @@ describe("SlackApi", () => {
 		it("should not send message when no users to remove", async () => {
 			const consoleSpy = jest.spyOn(console, "log").mockImplementation();
 
-			await slackApi.sendChannelNotification(mockRecipientUserId, [], 90, "Test App");
+			await slackApi.sendChannelNotification(mockRecipientUserId, [], [], "Test App", "removal");
 
 			expect(mockPostMessage).not.toHaveBeenCalled();
 			expect(mockLookupByEmail).not.toHaveBeenCalled();
@@ -381,7 +381,6 @@ describe("SlackApi", () => {
 
 		it("should handle Slack API errors when sending removal notification", async () => {
 			const usersToRemove: User[] = [{ name: "John Doe", email: "john@example.com" }];
-			const inactiveDays = 90;
 			const appName = "Test App";
 
 			mockLookupByEmail.mockResolvedValueOnce({
@@ -395,9 +394,9 @@ describe("SlackApi", () => {
 			const mockError = new Error("Slack API Error");
 			mockPostMessage.mockRejectedValueOnce(mockError);
 
-			await expect(
-				slackApi.sendChannelNotification(mockRecipientUserId, usersToRemove, inactiveDays, appName),
-			).rejects.toThrow("Slack API Error");
+			await expect(slackApi.sendChannelNotification(mockRecipientUserId, [], usersToRemove, appName)).rejects.toThrow(
+				"Slack API Error",
+			);
 		});
 
 		it("should not send notification when disabled", async () => {
@@ -406,7 +405,7 @@ describe("SlackApi", () => {
 
 			const usersToRemove: User[] = [{ name: "John Doe", email: "john@example.com" }];
 
-			await disabledSlackApi.sendChannelNotification(mockRecipientUserId, usersToRemove, 90, "Test App");
+			await disabledSlackApi.sendChannelNotification(mockRecipientUserId, [], usersToRemove, "Test App");
 
 			expect(mockPostMessage).not.toHaveBeenCalled();
 			expect(consoleSpy).toHaveBeenCalledWith("Slack notifications are disabled.");

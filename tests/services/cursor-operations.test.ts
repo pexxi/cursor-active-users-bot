@@ -21,32 +21,32 @@ describe("CursorOperations", () => {
 		SLACK_BOT_TOKEN: "test-slack-bot-token",
 		SLACK_USER_ID: "test-slack-user-id",
 		SLACK_SIGNING_SECRET: "test-slack-signing-secret",
-		NOTIFY_AFTER_DAYS: 60,
-		REMOVE_AFTER_DAYS: 90,
-		ENABLE_NOTIFICATIONS: true,
 	};
 
 	const mockEnv: EnvData = {
 		NOTIFY_AFTER_DAYS: 60,
 		REMOVE_AFTER_DAYS: 90,
-		ENABLE_NOTIFICATIONS: true,
+		ENABLE_SLACK_NOTIFICATIONS: true,
 		ENABLE_CURSOR: true,
 		ENABLE_GITHUB_COPILOT: true,
 	};
 
 	beforeEach(() => {
 		jest.clearAllMocks();
-		cursorOperations = new CursorOperations(mockSecrets, mockEnv);
+		const mockSlackApiInstance = {
+			sendInactivityWarningDM: jest.fn().mockResolvedValue(true),
+			sendChannelNotification: jest.fn().mockResolvedValue(true),
+		} as unknown as jest.Mocked<SlackApi>;
+
+		mockSlackApi.mockImplementation(() => mockSlackApiInstance);
+		cursorOperations = new CursorOperations(mockSecrets, mockEnv, mockSlackApiInstance);
 	});
 
 	describe("constructor", () => {
 		it("should initialize with secrets and env", () => {
 			expect(mockCursorAdminApi).toHaveBeenCalledWith(mockSecrets.CURSOR_API_KEY);
-			expect(mockSlackApi).toHaveBeenCalledWith(
-				mockSecrets.SLACK_BOT_TOKEN,
-				mockSecrets.SLACK_SIGNING_SECRET,
-				mockEnv.ENABLE_NOTIFICATIONS,
-			);
+			// SlackApi is now passed as a parameter, so we don't expect it to be constructed
+			expect(cursorOperations).toBeDefined();
 		});
 	});
 
@@ -101,10 +101,7 @@ describe("CursorOperations", () => {
 				removePeriodUsage as any,
 			);
 
-			expect(result.usersToNotify).toEqual([
-				{ name: "Jane Smith", email: "jane@example.com" },
-				{ name: "Bob Wilson", email: "bob@example.com" },
-			]);
+			expect(result.usersToNotify).toEqual([{ name: "Jane Smith", email: "jane@example.com" }]);
 			expect(result.usersToRemove).toEqual([{ name: "Bob Wilson", email: "bob@example.com" }]);
 		});
 	});

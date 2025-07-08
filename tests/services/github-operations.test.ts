@@ -23,15 +23,12 @@ describe("GitHubOperations", () => {
 		SLACK_BOT_TOKEN: "test-slack-bot-token",
 		SLACK_USER_ID: "test-slack-user-id",
 		SLACK_SIGNING_SECRET: "test-slack-signing-secret",
-		NOTIFY_AFTER_DAYS: 60,
-		REMOVE_AFTER_DAYS: 90,
-		ENABLE_NOTIFICATIONS: true,
 	};
 
 	const mockEnv: EnvData = {
 		NOTIFY_AFTER_DAYS: 60,
 		REMOVE_AFTER_DAYS: 90,
-		ENABLE_NOTIFICATIONS: true,
+		ENABLE_SLACK_NOTIFICATIONS: true,
 		ENABLE_CURSOR: true,
 		ENABLE_GITHUB_COPILOT: true,
 	};
@@ -45,23 +42,19 @@ describe("GitHubOperations", () => {
 		} as unknown as jest.Mocked<GitHubApi>;
 		mockSlackApi = {
 			sendInactivityWarningDM: jest.fn(),
-			sendRemovalCandidatesNotification: jest.fn(),
-			sendInactiveUsersNotification: jest.fn(),
+			sendChannelNotification: jest.fn(),
 		} as unknown as jest.Mocked<SlackApi>;
 
 		MockedGitHubApi.mockImplementation(() => mockGitHubApi);
 		MockedSlackApi.mockImplementation(() => mockSlackApi);
-		githubOperations = new GitHubOperations(mockSecrets, mockEnv);
+		githubOperations = new GitHubOperations(mockSecrets, mockEnv, mockSlackApi);
 	});
 
 	describe("constructor", () => {
 		it("should initialize with secrets and env", () => {
 			expect(MockedGitHubApi).toHaveBeenCalledWith(mockSecrets.GITHUB_TOKEN, mockSecrets.GITHUB_ORG);
-			expect(MockedSlackApi).toHaveBeenCalledWith(
-				mockSecrets.SLACK_BOT_TOKEN,
-				mockSecrets.SLACK_SIGNING_SECRET,
-				mockEnv.ENABLE_NOTIFICATIONS,
-			);
+			// SlackApi is now passed as a parameter, so we don't expect it to be constructed
+			expect(githubOperations).toBeDefined();
 		});
 	});
 

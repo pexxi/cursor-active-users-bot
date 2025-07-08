@@ -54,7 +54,7 @@ export class GitHubOperations {
 				return lastActivity < cutoffDate;
 			})
 			.map((seat) => ({
-				email: seat.assignee.email || seat.assignee.login, // Fallback if email not available
+				email: seat.assignee.email || `${seat.assignee.login}@github.local`, // Fallback if email not available
 				name: seat.assignee.login, // Use GitHub username as name
 			}));
 	}
