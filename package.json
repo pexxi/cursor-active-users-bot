@@ -34,7 +34,7 @@
     "@slack/bolt": "^4.4.0",
     "@types/aws-lambda": "^8.10.150",
     "aws-cdk-lib": "2.204.0",
-    "axios": "^1.10.0",
+    "axios": "^1.12.2",
     "constructs": "^10.4.2",
     "dotenv": "^17.0.1",
     "express": "^5.1.0",
